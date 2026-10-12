@@ -1,0 +1,15 @@
+name: Andrea
+age: 45
+summary: Non vedente dalla nascita, usa TalkBack con destrezza; cucina da solo e vuole sapere a che punto è ogni cosa.
+education: laurea
+tags: [cucina, accessibilita]
+tech: 4
+english: 3
+vision: blind
+motor: normal
+explore: 3
+reading: 5
+patience: 4
+hurry: 2
+assistive: talkback
+context: [TalkBack, cuffie a volte]

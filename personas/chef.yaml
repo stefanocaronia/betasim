@@ -1,0 +1,14 @@
+name: Marco
+age: 35
+summary: Chef in una trattoria; durante il servizio ha tre fuochi accesi e zero tempo. Vuole toccare una volta e basta.
+education: scuola alberghiera
+tags: [cucina, lavoro]
+tech: 3
+english: 2
+vision: none
+motor: busy
+explore: 2
+reading: 1
+patience: 1
+hurry: 5
+context: [mani unte, rumore forte, fretta]

@@ -1,0 +1,18 @@
+{
+  "name": "betasim",
+  "version": "0.1.0",
+  "description": "Simulated beta testers and YAML tests for apps: engine golden cases, UI flows, persona-based usability simulation, compact reports for LLM iteration.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "betasim": "bin/betasim.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.63.0",
+    "yaml": "^2.9.1"
+  }
+}
