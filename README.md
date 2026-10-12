@@ -273,3 +273,11 @@ Per un agente che interpreta una persona, `betasim brief` prepara il punto di pa
 - **Le interviste**: fare domande a una persona, sia da un LLM sia da chi sviluppa (per esempio quali casi d'uso vorrebbe, cosa secondo lei manca). Un comando come `betasim ask --persona <id> "<domanda>"` prepara il brief: la scheda, ciò che la persona ha visto dell'app (i suoi diari, o una presentazione delle funzioni da `features.yaml`) e la domanda; il modello risponde con la sua voce. Chi sviluppa chiede dalla chat con l'assistente, o da una casella nella dashboard. Le risposte sono ipotesi da verificare con persone vere, come i diari dei tester LLM.
 - **La memoria dei tester**: oggi la seconda fase di uno scenario legge l'esito della prima, e basta. Ogni persona avrà una memoria sua, nella cartella del progetto indicata in `betasim.yaml`, fuori dalle sessioni. Alla fine di ogni sessione la persona scrive, con le sue parole, cosa ricorda: cosa ha fatto, dove stanno le cose, cosa l'ha irritata, se tornerà. Aggiunge la data e la versione dell'app che ha visto. È il succo, non il diario intero. La leggono il brief di ogni scenario e le interviste; se l'app è cambiata, il brief lo dice, come un aggiornamento vero. `betasim memory [--persona <id>]` la mostra; `betasim forget --persona <id>` o `--all` la cancella, senza toccare diari e report, che sono le prove. Con la memoria si prova chi torna dopo un aggiornamento; senza, chi arriva nuovo. Le persone a numeri non hanno memoria: misurano sempre la prima volta.
 - **Un pacchetto a sé**: basta spostare la cartella in un suo repository; non dipende da niente del progetto.
+
+## Development notes
+
+Developed with the help of AI coding agents. Everything is designed, reviewed and tested by the project maintainer.
+
+**We encourage everyone to use AI for their own purposes.**  
+The means of production should belong to the people.  
+Fight corporate control of technology, not our right to use it.
