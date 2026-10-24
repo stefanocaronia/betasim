@@ -5,9 +5,14 @@ import { brief } from './brief.mjs';
 import { play } from './play.mjs';
 import { agentBrief, agentReport } from './agents.mjs';
 import { loadDir } from './util.mjs';
+import { look } from './look.mjs';
+import { init } from './init.mjs';
 
-const HELP = `betasim: test del motore, flussi YAML e beta tester simulati.
+const HELP = `betasim (o bs): test del motore, flussi YAML e beta tester simulati.
 
+  betasim init [url | cartella]               prepara un sito: test/betasim.yaml e un primo flusso, senza codice da scrivere
+  betasim look <url | cartella | file.html>   guarda la pagina: screenshot, console e accessibilità (axe), a 375 e 1280, chiaro e scuro
+           [--width 375,1280] [--theme light,dark] [--click <selettore>] [--press <tasto>] [--wait <ms>] [--full] [--aria] [--still] [--out look]
   betasim [engine] [flows] [usability] [all]   lancia le suite (default: all)
   betasim --ab A,B [flows] [usability]         A/B: gli stessi flussi e le stesse persone su due varianti dell'app, e le differenze (report/ab)
   betasim list                                 elenca casi, flussi, compiti, persone e varianti
@@ -32,6 +37,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h' || a === '--help') { args.help = true; continue; }
+    if (['--click', '--press', '--wait'].includes(a)) { (args.steps ??= []).push([a.slice(2), argv[++i]]); continue; }
     if (a.startsWith('--')) {
       const key = a.slice(2), next = argv[i + 1];
       if (next === undefined || next.startsWith('--')) args[key] = true; else { args[key] = next; i++; }
@@ -43,6 +49,8 @@ function parseArgs(argv) {
 export async function main(argv) {
   const args = parseArgs(argv);
   if (args.help) { console.log(HELP); return 0; }
+  if (args._[0] === 'look') return look(args);
+  if (args._[0] === 'init') return init(args);
   const cfg = await loadConfig(args.config);
   const cmd = args._[0];
   if (cmd === 'brief') return brief(cfg, args);

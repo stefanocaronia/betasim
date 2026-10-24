@@ -22,7 +22,19 @@ Come dipendenza di sviluppo del progetto, dal repository:
 npm install --save-dev github:stefanocaronia/betasim
 ```
 
-Usa il Chrome installato (`channel: chrome`); senza Chrome, `channel: bundled` e una volta `npx playwright install chromium`.
+Usa il Chrome installato (`channel: chrome`); senza Chrome, `channel: bundled` e una volta `npx playwright install chromium`. Il comando è `betasim`; installato, risponde anche a `bs`. Nelle istruzioni si scrive sempre `npx betasim`: se betasim non è installato, `npx bs` prenderebbe da npm un altro pacchetto.
+
+## Un sito web, senza scrivere codice
+
+```
+npx betasim init http://localhost:5173/     # o la cartella del sito: npx betasim init dist
+npx betasim look http://localhost:5173/     # screenshot a 375 e 1280, chiaro e scuro, in look/
+npx betasim flows                           # i percorsi di test/flows/*.yaml
+```
+
+`init` scrive `test/betasim.yaml` e un primo flusso, senza adattatore. `look` guarda una pagina come la vedrebbe una persona: per ogni larghezza e tema uno screenshot, gli errori della console e i file che non si caricano, e i problemi di accessibilità che trova [axe](https://github.com/dequelabs/axe-core); con `--aria` la pagina come la legge uno screen reader. `--click <selettore>`, `--press <tasto>` e `--wait <ms>` agiscono prima dello scatto, nell'ordine dato. Esce con 1 se ha trovato qualcosa da guardare.
+
+Per l'AI che lavora al sito c'è [GUIDA-AI.md](GUIDA-AI.md): cosa fare da sola ogni giorno (`look` dopo ogni modifica, `flows` prima di dire che è fatto) e cosa proporre e quando (i tester simulati, quelli LLM, l'A/B). `init` la segnala nel `CLAUDE.md` del progetto, o nel suo `AGENTS.md`.
 
 ## Uso
 

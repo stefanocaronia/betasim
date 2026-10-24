@@ -69,7 +69,8 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
   else if (spec.css) { found = [...root.querySelectorAll(spec.css)].filter(visible); level = 'css'; }
   else {
     const want = low(spec.label ?? spec.text);
-    const key = spec.label != null ? (el => low(el.getAttribute('aria-label'))) : (el => low(nameOf(el)));
+    // {label}: a control's aria-label; a field's name as a screen reader says it, from aria or from its <label>, as a website's fields are named
+    const key = spec.label != null ? (el => low(isFieldEl(el) ? accName(el)[0] : el.getAttribute('aria-label'))) : (el => low(nameOf(el)));
     const tests = [['exact', k => k === want], ['start', k => k.startsWith(want)], ['contains', k => k.includes(want)]];
     for (const [lv, test] of tests) {
       found = cands.filter(el => test(key(el)));
