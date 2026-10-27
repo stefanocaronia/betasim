@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shadow roots</title>
+<style>
+  body { margin: 0; padding: 16px; font: 16px sans-serif; }
+  button { min-width: 120px; min-height: 48px; }
+</style>
+</head>
+<body>
+<button id="rolls" aria-expanded="false">Rolls</button>
+<section class="card">
+  <h2>Hit dice</h2>
+  <div id="card-body"></div>
+</section>
+<div hidden><div id="hidden-host"></div></div>
+<output id="log"></output>
+<script>
+  // a card body in an open shadow root, as a plugin mounts it, with a widget of its own inside
+  const body = document.getElementById('card-body').attachShadow({ mode: 'open' });
+  body.innerHTML = `
+    <p>Spend hit dice on a short rest.</p>
+    <label for="count">How many</label> <input id="count">
+    <button>Roll +2 Hit dice d8</button>
+    <button>Done</button>
+    <div id="widget"></div>`;
+  body.getElementById('widget').attachShadow({ mode: 'open' }).innerHTML = '<button aria-label="Keep the rest">✓</button>';
+  document.getElementById('hidden-host').attachShadow({ mode: 'open' }).innerHTML = '<button>Secret</button>';
+  // what the page heard, as a page listening at the document hears it
+  const log = document.getElementById('log');
+  document.addEventListener('click', e => { log.textContent = 'click ' + (e.composedPath()[0].getAttribute?.('aria-label') || e.composedPath()[0].textContent); });
+  document.addEventListener('input', e => { log.textContent = 'input ' + e.composedPath()[0].value; });
+</script>
+</body>
+</html>

@@ -1,12 +1,15 @@
 {
   "name": "betasim",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Simulated beta testers and YAML tests for apps: engine golden cases, UI flows, persona-based usability simulation, compact reports for LLM iteration.",
   "type": "module",
   "private": true,
   "bin": {
     "betasim": "bin/betasim.mjs",
     "bs": "bin/betasim.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"

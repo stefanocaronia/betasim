@@ -10,20 +10,50 @@ export async function launchBrowser(cfg, opts = {}) {
   return chromium.launch({ headless });
 }
 
+// Runs in the page: the DOM as a person sees it, across open shadow roots (a widget's or a plugin's own tree).
+// Without shadow roots each helper gives what querySelectorAll, closest, contains and elementFromPoint give.
+function deepDom() {
+  const up = el => el.parentElement || el.getRootNode().host || null;   // the parent, or the host above a shadow root
+  // what matches sel under root, in document order: a host's shadow tree right after the host, before its light children
+  const all = (root, sel) => {
+    const out = [];
+    const visit = tree => {
+      const hits = new Set(tree.querySelectorAll(sel));
+      for (const el of tree.querySelectorAll('*')) { if (hits.has(el)) out.push(el); if (el.shadowRoot) visit(el.shadowRoot); }
+    };
+    if (root.shadowRoot) visit(root.shadowRoot);
+    visit(root);
+    return out;
+  };
+  const closest = (el, sel) => { for (let n = el; n; n = n.getRootNode().host) { const found = n.closest(sel); if (found) return found; } return null; };
+  const inside = (outer, el) => { for (let n = el; n; n = n.getRootNode().host) { if (outer.contains(n)) return true; } return false; };   // contains, then from host to host
+  const roots = root => [root.shadowRoot, ...all(root, '*').map(el => el.shadowRoot)].filter(Boolean);
+  // the element under a point, inside the shadow trees it opens (document.elementFromPoint stops at the host)
+  const point = (x, y) => {
+    let el = document.elementFromPoint(x, y);
+    while (el && el.shadowRoot) { const inner = el.shadowRoot.elementFromPoint(x, y); if (!inner || inner === el) break; el = inner; }
+    return el;
+  };
+  return { up, all, closest, inside, roots, point };
+}
+
+/** A function for page.evaluate that gets deepDom's helpers as its second argument: Playwright sends a function as its source, so the two travel together. */
+export const inPage = fn => new Function('arg', `return (${fn})(arg, (${deepDom})());`);
+
 // Runs in the page. Finds what a person would tap: by visible text, by accessible label, by id or css,
 // only inside the top layer (an open sheet hides what is behind it) and never inside ignored parts.
-const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
+const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, closest, inside, point }) => {
   const norm = s => String(s ?? '').replace(/\s+/g, ' ').trim();
   const low = s => norm(s).toLowerCase();
-  const ignored = el => !!(ignore && el.closest(ignore));
+  const ignored = el => !!(ignore && closest(el, ignore));
   const visible = el => {
-    if (!el || !el.getClientRects().length || el.closest('[hidden]') || ignored(el)) return false;
+    if (!el || !el.getClientRects().length || closest(el, '[hidden]') || ignored(el)) return false;
     const cs = getComputedStyle(el);
     return cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity !== 0;
   };
   let root = document.body, layer = 'page';
   for (const sel of layers) {
-    const found = [...document.querySelectorAll(sel)].filter(visible);
+    const found = all(document, sel).filter(visible);
     if (found.length) { root = found[found.length - 1]; layer = sel; break; }
   }
   const ACT = 'button,a[href],input,select,textarea,summary,[role=button],[role=switch],[role=tab],[role=menuitem],[role=link],[role=checkbox],[role=radio],[role=option],[data-act],[data-go],[data-route],[onclick]';
@@ -32,14 +62,14 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
   const nameOf = el => el.getAttribute('aria-label') || (isFieldEl(el) ? fieldLabel(el) : textOf(el)) || (el.tagName === 'INPUT' && ['radio', 'checkbox'].includes(el.type) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || el.id || '';
   // the name a screen reader would say, and where it comes from (aria, a real label, the text, or only the placeholder)
   const labelText = el => {
-    if (el.id) { const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`); if (l) return norm(l.textContent); }   // textContent: the words, not their CSS capitals
+    if (el.id) { const l = el.getRootNode().querySelector(`label[for="${CSS.escape(el.id)}"]`); if (l) return norm(l.textContent); }   // textContent: the words, not their CSS capitals; an id names within its own tree
     const wrap = el.closest('label');
     if (wrap) { const c = wrap.cloneNode(true); c.querySelectorAll('input,select,textarea').forEach(x => x.remove()); return norm(c.textContent); }
     return '';
   };
   const accName = el => {
     const by = el.getAttribute('aria-labelledby');
-    if (by) { const t = norm(by.split(/\s+/).map(id => document.getElementById(id)).filter(Boolean).map(x => x.textContent).join(' ')); if (t) return [t, 'aria']; }
+    if (by) { const t = norm(by.split(/\s+/).map(id => el.getRootNode().getElementById(id)).filter(Boolean).map(x => x.textContent).join(' ')); if (t) return [t, 'aria']; }
     const al = el.getAttribute('aria-label'); if (al) return [norm(al), 'aria'];
     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
       const l = labelText(el); if (l) return [l, 'label'];
@@ -60,13 +90,13 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
   };
   const roleOf = el => el.getAttribute('role') || ({ BUTTON: 'button', A: 'link', SELECT: 'combobox', TEXTAREA: 'textbox', SUMMARY: 'button' })[el.tagName]
     || (el.tagName === 'INPUT' ? ({ checkbox: 'checkbox', radio: 'radio', button: 'button', submit: 'button' })[el.type] || 'textbox' : 'generic');
-  let pool = mode === 'see' ? [...root.querySelectorAll('*')] : [...root.querySelectorAll(ACT)];
+  let pool = all(root, mode === 'see' ? '*' : ACT);
   if (mode === 'see' && root !== document.body) pool.unshift(root);
   let cands = pool.filter(visible);
   if (mode === 'input') cands = cands.filter(el => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
   let found = [], level = '';
-  if (spec.id) { const el = document.getElementById(spec.id); found = el && visible(el) ? [el] : []; level = 'id'; }
-  else if (spec.css) { found = [...root.querySelectorAll(spec.css)].filter(visible); level = 'css'; }
+  if (spec.id) { const el = document.getElementById(spec.id) || all(document, '#' + CSS.escape(spec.id))[0]; found = el && visible(el) ? [el] : []; level = 'id'; }
+  else if (spec.css) { found = all(root, spec.css).filter(visible); level = 'css'; }
   else {
     const want = low(spec.label ?? spec.text);
     // {label}: a control's aria-label; a field's name as a screen reader says it, from aria or from its <label>, as a website's fields are named
@@ -80,13 +110,13 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
   }
   if (spec.within && found.length) {
     const w = low(spec.within);
-    const boxes = [...root.querySelectorAll('*')].filter(el => visible(el) && low(el.innerText ?? el.textContent).includes(w));
+    const boxes = all(root, '*').filter(el => visible(el) && low(el.innerText ?? el.textContent).includes(w));
     const area = el => { const r = el.getBoundingClientRect(); return r.width * r.height; };
-    const owner = el => boxes.filter(b => b !== el && b.contains(el)).sort((a, b) => area(a) - area(b))[0];
+    const owner = el => boxes.filter(b => b !== el && inside(b, el)).sort((a, b) => area(a) - area(b))[0];
     found = found.filter(owner).sort((a, b) => area(owner(a)) - area(owner(b)));
   }
   // the most specific element: drop the ones that contain another match
-  if (found.length > 1) { const inner = found.filter(el => !found.some(o => o !== el && el.contains(o))); if (inner.length) found = inner; }
+  if (found.length > 1) { const inner = found.filter(el => !found.some(o => o !== el && inside(el, o))); if (inner.length) found = inner; }
   const el = found[spec.index || 0];
   if (!el) {
     const names = [...new Set(cands.filter(e => e.matches(ACT)).map(e => nameOf(e).slice(0, 36)).filter(Boolean))].slice(0, 40);
@@ -95,9 +125,9 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
   let r = el.getBoundingClientRect();
   // geometry for the what-if of remedies: the place inside the scrolling box, what of it is visible, and whether it is pinned
   let box = null;
-  for (let p = el.parentElement; p; p = p.parentElement) { const cs = getComputedStyle(p); if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 1) { box = p; break; } }
+  for (let p = up(el); p; p = up(p)) { const cs = getComputedStyle(p); if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 1) { box = p; break; } }
   let pinned = false;
-  for (let p = el; p && p !== (box || document.body); p = p.parentElement) { const pos = getComputedStyle(p).position; if (pos === 'sticky' || pos === 'fixed') { pinned = true; break; } }
+  for (let p = el; p && p !== (box || document.body); p = up(p)) { const pos = getComputedStyle(p).position; if (pos === 'sticky' || pos === 'fixed') { pinned = true; break; } }
   const bRect = box ? box.getBoundingClientRect() : { top: 0, bottom: innerHeight };
   // off screen: outside the window, or outside the box that scrolls it (a sheet whose body scrolls between a fixed head and foot)
   const offscreen = r.bottom > Math.min(innerHeight, bRect.bottom) + 1 || r.top < Math.max(0, bRect.top) - 1;
@@ -108,18 +138,18 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
     pinned,
   };
   // other commands on the same screen with the same name: which Play, which Done?
-  const twins = mode === 'act' ? cands.filter(o => o !== el && !o.contains(el) && !el.contains(o) && low(nameOf(o)) === low(nameOf(el))) : [];
+  const twins = mode === 'act' ? cands.filter(o => o !== el && !inside(o, el) && !inside(el, o) && low(nameOf(o)) === low(nameOf(el))) : [];
   const dupes = twins.length;
   // for who sees, a twin matters only in the same card (a Start in every row of a list is clear from its row)
-  let card = el.parentElement;
-  for (let i = 0; card && card !== root && i < 6 && norm(card.innerText ?? card.textContent).length <= norm(nameOf(el)).length + 3; i++) card = card.parentElement;
-  const dupesNear = card ? twins.filter(o => card.contains(o)).length : dupes;
+  let card = up(el);
+  for (let i = 0; card && card !== root && i < 6 && norm(card.innerText ?? card.textContent).length <= norm(nameOf(el)).length + 3; i++) card = up(card);
+  const dupesNear = card ? twins.filter(o => inside(card, o)).length : dupes;
   if (offscreen && mode !== 'see') { el.scrollIntoView({ block: 'center' }); r = el.getBoundingClientRect(); }
   const at = Array.isArray(spec.at) ? spec.at : [0.5, 0.5];   // where to touch, as fractions of the element (the ring's edge, not its digits)
   let cx = r.left + r.width * at[0], cy = r.top + r.height * at[1];
   let hit = true, cover = null;
   if (mode === 'act') {
-    const hits = (x, y) => { const t = document.elementFromPoint(x, y); return !!t && (t === el || el.contains(t) || t.contains(el)); };
+    const hits = (x, y) => { const t = point(x, y); return !!t && (t === el || inside(el, t) || inside(t, el)); };
     hit = hits(cx, cy);
     // an empty middle (an SVG row, a card with a gap): a finger lands on the name or on the bar, so try other points inside
     if (!hit && !Array.isArray(spec.at)) {
@@ -128,13 +158,13 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
         if (hits(x, y)) { cx = x; cy = y; hit = true; break; }
       }
     }
-    if (!hit) { const t = document.elementFromPoint(cx, cy); if (t) cover = nameOf(t).slice(0, 40) || t.tagName.toLowerCase(); }
+    if (!hit) { const t = point(cx, cy); if (t) cover = nameOf(t).slice(0, 40) || t.tagName.toLowerCase(); }
   }
   // the touch target: Material gives a smaller control 48 dp around it (on the web, an absolute ::before or ::after layer), and a finger hits that
   const pseudoBox = pseudo => { const cs = getComputedStyle(el, pseudo); return cs.content !== 'none' && cs.position === 'absolute' ? [parseFloat(cs.width) || 0, parseFloat(cs.height) || 0] : [0, 0]; };
   const [bw, bh] = pseudoBox('::before'), [aw, ah] = pseudoBox('::after');
   const tw = Math.max(r.width, bw, aw), th = Math.max(r.height, bh, ah);
-  document.querySelectorAll('[data-betasim-hit]').forEach(x => x.removeAttribute('data-betasim-hit'));
+  all(document, '[data-betasim-hit]').forEach(x => x.removeAttribute('data-betasim-hit'));
   el.setAttribute('data-betasim-hit', '1');
   const label = el.getAttribute('aria-label');
   const text = textOf(el);
@@ -154,65 +184,70 @@ const RESOLVE = ({ spec, mode, layers, ignore, disclosure }) => {
     fontPx: parseFloat(getComputedStyle(el).fontSize) || 0,
     inputType: el.tagName === 'SELECT' ? 'select' : (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ? (el.type || 'text') : null,
   };
-};
+});
 
 // Runs in the page: what the person has in front of them before acting.
-const SCREEN = ({ layers, ignore, disclosure }) => {
-  const ignored = el => !!(ignore && el.closest(ignore));
+const SCREEN = inPage(({ layers, ignore, disclosure }, { up, all, closest, inside, roots }) => {
+  const ignored = el => !!(ignore && closest(el, ignore));
   const visible = el => {
-    if (!el || !el.getClientRects().length || el.closest('[hidden]') || ignored(el)) return false;
+    if (!el || !el.getClientRects().length || closest(el, '[hidden]') || ignored(el)) return false;
     const cs = getComputedStyle(el);
     return cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity !== 0;
   };
   let root = document.body, layer = 'page';
   for (const sel of layers) {
-    const found = [...document.querySelectorAll(sel)].filter(visible);
+    const found = all(document, sel).filter(visible);
     if (found.length) { root = found[found.length - 1]; layer = sel; break; }
   }
   const inView = el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
   const ACT = 'button,a[href],input,select,textarea,summary,[role=button],[role=switch],[role=tab],[role=menuitem],[role=link],[data-act],[data-go],[data-route]';
-  const acts = [...root.querySelectorAll(ACT)].filter(el => visible(el) && inView(el));
-  const outer = acts.filter(el => !acts.some(o => o !== el && o.contains(el)));
+  const acts = all(root, ACT).filter(el => visible(el) && inView(el));
+  const outer = acts.filter(el => !acts.some(o => o !== el && inside(o, el)));
   let words = 0;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  while (walker.nextNode()) {
-    const p = walker.currentNode.parentElement;
-    if (!p || !visible(p) || !inView(p)) continue;
-    words += (walker.currentNode.textContent.match(/[\p{L}\p{N}]+/gu) || []).length;
+  for (const tree of [root, ...roots(root)]) {   // a tree walker stays in its own tree: each shadow root is walked on its own
+    const walker = document.createTreeWalker(tree, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const p = walker.currentNode.parentElement;
+      if (!p || !visible(p) || !inView(p)) continue;
+      words += (walker.currentNode.textContent.match(/[\p{L}\p{N}]+/gu) || []).length;
+    }
   }
   // the closed expanders on this screen and where they sit, for the what-if of opening them for everybody
   const topIn = el => {
     let box = null;
-    for (let p = el.parentElement; p; p = p.parentElement) { const cs = getComputedStyle(p); if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 1) { box = p; break; } }
+    for (let p = up(el); p; p = up(p)) { const cs = getComputedStyle(p); if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 1) { box = p; break; } }
     const r = el.getBoundingClientRect(), b = box ? box.getBoundingClientRect() : { top: 0 };
     return Math.round(r.top - b.top + (box ? box.scrollTop : scrollY));
   };
-  const disclosures = disclosure ? [...root.querySelectorAll(disclosure)].filter(visible)
+  const disclosures = disclosure ? all(root, disclosure).filter(visible)
     .map(d => ({ name: String(d.getAttribute('aria-label') || d.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60), top: topIn(d) })) : [];
   return { route: location.hash || location.pathname, layer, choices: outer.length, words, disclosures };
-};
+});
 
 // Before an expander opens: mark what is hidden in the top layer. After: measure what came into view.
-const MARK_HIDDEN = ({ layers, ignore }) => {
+const MARK_HIDDEN = inPage(({ layers, ignore }, { all, closest }) => {
   let root = document.body;
-  for (const sel of layers) { const f = [...document.querySelectorAll(sel)].filter(el => el.getClientRects().length); if (f.length) { root = f[f.length - 1]; break; } }
+  for (const sel of layers) { const f = all(document, sel).filter(el => el.getClientRects().length); if (f.length) { root = f[f.length - 1]; break; } }
   let i = 0;
-  root.querySelectorAll('[hidden]').forEach(el => { if (!(ignore && el.closest(ignore))) el.setAttribute('data-betasim-hid', String(i++)); });
+  all(root, '[hidden]').forEach(el => { if (!(ignore && closest(el, ignore))) el.setAttribute('data-betasim-hid', String(i++)); });
   return i;
-};
-const MEASURE_REVEALED = () => {
+});
+const MEASURE_REVEALED = inPage((_, { all, closest, inside, roots }) => {
   const ACT = 'button,a[href],input,select,textarea,summary,[role=button],[role=switch],[role=tab],[role=menuitem],[role=link],[data-act],[data-go],[data-route]';
-  const shown = [...document.querySelectorAll('[data-betasim-hid]')].filter(el => !el.hidden && !el.closest('[hidden]') && el.getClientRects().length);
-  const outer = shown.filter(el => !shown.some(o => o !== el && o.contains(el)));
+  const shown = all(document, '[data-betasim-hid]').filter(el => !el.hidden && !closest(el, '[hidden]') && el.getClientRects().length);
+  const outer = shown.filter(el => !shown.some(o => o !== el && inside(o, el)));
   let dh = 0, dc = 0, dw = 0;
   for (const el of outer) {
     dh += el.getBoundingClientRect().height;
-    dc += [...el.querySelectorAll(ACT)].filter(x => x.getClientRects().length).length;
-    dw += (el.textContent.match(/[\p{L}\p{N}]+/gu) || []).length;
+    dc += all(el, ACT).filter(x => x.getClientRects().length).length;
+    for (const tree of [el, ...roots(el)]) dw += (tree.textContent.match(/[\p{L}\p{N}]+/gu) || []).length;
   }
-  document.querySelectorAll('[data-betasim-hid]').forEach(el => el.removeAttribute('data-betasim-hid'));
+  all(document, '[data-betasim-hid]').forEach(el => el.removeAttribute('data-betasim-hid'));
   return { dh: Math.round(dh), dc, dw };
-};
+});
+
+// The top and bottom of what the last find chose, for a drag.
+const HIT_BOX = inPage((_, { all }) => { const r = all(document, '[data-betasim-hit]')[0].getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
 
 export class WebDriver {
   constructor(browser, cfg, baseUrl) {
@@ -283,7 +318,7 @@ export class WebDriver {
   async drag(from, to, where) {
     const a = await this.find(from, 'see'); if (!a.ok) return a;
     const b = await this.find(to, 'see'); if (!b.ok) return b;
-    const box = await this.page.evaluate(() => { const el = document.querySelector('[data-betasim-hit]'); const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+    const box = await this.page.evaluate(HIT_BOX);
     const ty = where === 'above' ? box.top + 2 : box.bottom - 2;
     await this.page.mouse.move(a.cx, a.cy);
     await this.page.mouse.down();
@@ -299,8 +334,8 @@ export class WebDriver {
   async input(target, text) {
     const r = await this.find(target, 'input');
     if (!r.ok) return r;
-    await this.page.evaluate(({ text }) => {
-      const el = document.querySelector('[data-betasim-hit]');
+    await this.page.evaluate(inPage(({ text }, { all }) => {
+      const el = all(document, '[data-betasim-hit]')[0];
       if (!el) return;
       el.focus();
       // what a person would type or pick on a phone ("19:30", "0745", "28/10") becomes the value the field wants
@@ -320,9 +355,9 @@ export class WebDriver {
         const opt = [...el.options].find(o => o.value === value || o.textContent.trim().toLowerCase() === value.toLowerCase());
         if (opt) el.value = opt.value;
       } else el.value = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
-    }, { text: String(text) });
+    }), { text: String(text) });
     await this.settle();
     return r;
   }
@@ -331,7 +366,7 @@ export class WebDriver {
   async keypad(target, keys) {
     const r = await this.find(target, 'act');
     if (!r.ok) return r;
-    const field = await this.page.evaluate(() => { const el = document.querySelector('[data-betasim-hit]'); return el ? { controls: el.getAttribute('aria-controls') || '', closed: el.getAttribute('aria-expanded') === 'false' } : null; });
+    const field = await this.page.evaluate(inPage((_, { all }) => { const el = all(document, '[data-betasim-hit]')[0]; return el ? { controls: el.getAttribute('aria-controls') || '', closed: el.getAttribute('aria-expanded') === 'false' } : null; }));
     if (!field || !field.controls) return { ok: false, error: 'not a keypad field (no aria-controls)', candidates: [] };
     if (field.closed) await this.clickAt(r);
     // what a person types ("15 00", "4500") becomes key presses: the longest key that fits first ("00" before "0")

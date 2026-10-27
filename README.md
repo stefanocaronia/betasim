@@ -127,7 +127,7 @@ covers: [focus-swipe]             # le funzioni di features.yaml che il flusso a
 expect: {maxTaps: 5}              # oltre il budget, un avviso
 ```
 
-Ogni flusso parte da zero, in un contesto nuovo del browser. `optional: true` su un passo lo salta se non trova il bersaglio.
+Ogni flusso parte da zero, in un contesto nuovo del browser. `optional: true` su un passo lo salta se non trova il bersaglio. I bersagli, le etichette e il testo si cercano anche dentro gli shadow root aperti (il corpo di un widget o di un plugin), nell'ordine del documento; `css` vale dentro ogni albero, non attraverso il confine.
 
 ### Un caso del motore
 
@@ -288,7 +288,7 @@ Per un agente che interpreta una persona, `betasim brief` prepara il punto di pa
 
 ## Development notes
 
-Developed with the help of AI coding agents. Everything is designed, reviewed and tested by the project's human maintainer.
+Developed with the help of AI coding agents. Everything is designed, reviewed and tested by the project's human maintainer. `npm test` runs betasim's own tests (`test/`, with the installed Chrome).
 
 **We encourage everyone to use AI for their own purposes.**  
 The means of production should belong to the people.  

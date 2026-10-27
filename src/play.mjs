@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { WebDriver } from './driver/web.mjs';
+import { WebDriver, inPage } from './driver/web.mjs';
 import { openTarget } from './run.mjs';
 import { applyVariant } from './suites/flows.mjs';
 import { readYaml, toYaml, parseDur, fmtDur, ensureDir } from './util.mjs';
@@ -57,11 +57,11 @@ async function doMove(d, m) {
     case 'scroll': {
       // the box that scrolls under the finger (the wheel does not move it while the fake clock is paused)
       const vp = d.cfg.target.viewport;
-      await d.page.evaluate(({ dy, x, y }) => {
-        let el = document.elementFromPoint(x, y);
-        while (el && !(el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = el.parentElement;
+      await d.page.evaluate(inPage(({ dy, x, y }, { up, point }) => {
+        let el = point(x, y);
+        while (el && !(el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = up(el);
         (el || document.scrollingElement).scrollBy(0, dy);
-      }, { dy: m.dir === 'up' ? -450 : 450, x: vp.width / 2, y: vp.height / 2 });
+      }), { dy:m.dir === 'up' ? -450 : 450, x: vp.width / 2, y: vp.height / 2 });
       await d.settle();
       return { ok: true, did: `scorro ${m.dir === 'up' ? 'in su' : 'in giù'}` };
     }
@@ -119,7 +119,7 @@ async function replay(cfg, dir, target) {
 async function describe(d) {
   const t = d.cfg.target;
   const aria = await d.aria();
-  const notice = t.toast ? await d.page.evaluate(sel => [...document.querySelectorAll(sel)].map(e => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), t.toast) : '';
+  const notice = t.toast ? await d.page.evaluate(inPage((sel, { all }) => all(document, sel).map(e => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · ')), t.toast) : '';
   const now = await d.page.evaluate(() => Date.now());
   const clock = new Date(now).toLocaleString('it-IT', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: t.timezone });
   return { aria, notice, clock };
