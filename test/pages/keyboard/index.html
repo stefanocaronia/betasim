@@ -17,6 +17,13 @@
   <button role="tab" tabindex="-1" aria-selected="false">Documents</button>
 </div>
 <div id="card"></div>
+<!-- a roving tabindex with no ARIA group, as a sheet's lines; a radio named by the label around it -->
+<div class="rows">
+  <button tabindex="0">Strength +2</button>
+  <button tabindex="-1">Wisdom +3</button>
+  <button tabindex="-1">Insight +5</button>
+</div>
+<label class="who"><input type="radio" name="who" style="position: absolute; opacity: 0"> Lupa</label>
 <script>
   // a control inside an open shadow root, in the Tab order as the page's own
   document.getElementById('card').attachShadow({ mode: 'open' }).innerHTML = '<button>Inside</button>';

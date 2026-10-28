@@ -9,3 +9,4 @@ explore: 3
 reading: 5
 patience: 4
 hurry: 2
+pace: 3   # a task takes up to three times as long by ear: the time finding expects it

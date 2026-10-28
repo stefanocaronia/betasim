@@ -60,7 +60,23 @@ const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, c
   const ACT = 'button,a[href],input,select,textarea,summary,[role=button],[role=switch],[role=tab],[role=menuitem],[role=link],[role=checkbox],[role=radio],[role=option],[data-act],[data-go],[data-route],[onclick]';
   const FOCUSABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable]';
   const GROUPS = '[role=tablist],[role=radiogroup],[role=toolbar],[role=grid],[role=listbox],[role=menu],[role=menubar],[role=tree]';
-  const tabbable = el => el.tabIndex >= 0 && !el.disabled && !closest(el, '[inert]') && visible(el);
+  // Tab reaches a control that is drawn, even when it is invisible to the eye (a radio at opacity 0 under its label): not one hidden or inert
+  const tabbable = el => el.tabIndex >= 0 && !el.disabled && !closest(el, '[inert],[hidden]') && !ignored(el) && el.getClientRects().length > 0
+    && getComputedStyle(el).visibility !== 'hidden';
+  // a group that is one Tab stop: an ARIA one (tabs, radios, a toolbar), or items taken out of the Tab order on purpose (tabindex -1) beside one of
+  // their kind that holds the stop, a roving tabindex; its stop, and the arrows from it
+  const arrowsTo = (el, stops) => {
+    const group = closest(el, GROUPS);
+    let items = group ? all(group, FOCUSABLE).filter(visible) : [];
+    if (!group && el.getAttribute('tabindex') === '-1') {
+      for (let p = up(el), i = 0; p && p !== root && i < 4 && !items.length; p = up(p), i++) {
+        const kin = all(p, '[tabindex]').filter(o => visible(o) && o.tagName === el.tagName);
+        if (kin.some(o => o !== el && stops.includes(o))) items = kin;
+      }
+    }
+    const stop = items.find(o => o !== el && stops.includes(o));
+    return stop ? { stop, arrows: Math.abs(items.indexOf(el) - items.indexOf(stop)) } : null;
+  };
   const textOf = el => norm(el.innerText ?? el.textContent);
   const isFieldEl = el => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
   const nameOf = el => el.getAttribute('aria-label') || (isFieldEl(el) ? fieldLabel(el) : textOf(el)) || (el.tagName === 'INPUT' && ['radio', 'checkbox'].includes(el.type) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || el.id || '';
@@ -170,15 +186,16 @@ const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, c
   const tw = Math.max(r.width, bw, aw), th = Math.max(r.height, bh, ah);
   all(document, '[data-betasim-hit]').forEach(x => x.removeAttribute('data-betasim-hit'));
   el.setAttribute('data-betasim-hit', '1');
-  // the keyboard: a control in the Tab order, or out of it inside a group that is one Tab stop (tabs, radios, a toolbar), reached with arrows;
-  // its distance in stops from where the focus is now, Shift+Tab included
+  // the keyboard: a control in the Tab order (a label through its field), or out of it in a group that is one Tab stop, reached with arrows;
+  // its distance in stops from where the focus is now, Shift+Tab included, and the arrows inside its group
   const stops = all(root, FOCUSABLE).filter(tabbable);
-  const group = tabbable(el) ? null : closest(el, GROUPS);
-  const stop = tabbable(el) ? el : group ? stops.find(s => inside(group, s)) : undefined;
+  const field = el.tagName === 'LABEL' && el.control && tabbable(el.control) ? el.control : el;
+  const roving = tabbable(field) ? null : arrowsTo(field, stops);
+  const stop = tabbable(field) ? field : roving?.stop;
   let active = document.activeElement;
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
   const from = stops.findIndex(s => s === active || inside(s, active));
-  const keySteps = stop ? Math.abs(stops.indexOf(stop) - from) + (stop === el ? 0 : 1) : null;
+  const keySteps = stop ? Math.abs(stops.indexOf(stop) - from) + (roving?.arrows ?? 0) : null;
   const label = el.getAttribute('aria-label');
   const text = textOf(el);
   const role = roleOf(el);

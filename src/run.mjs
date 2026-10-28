@@ -88,8 +88,8 @@ export async function runAll(cfg, suites, args) {
       const clash = wi.pairs.filter(p => p.kind === 'collide' && (p.a === r.id || p.b === r.id));
       f.remedy = {
         id: r.id, preferred: r.label, gain: +r.gain.toFixed(4), harmful: r.harmful || undefined,
-        options: r.options.map(o => `${o.label}: ${(o.gain * 100).toFixed(1)} pt${o.sideEffects.length ? ` (peggiora ${o.sideEffects.join(', ')})` : ''}`),
-        collides: clash.length ? clash.map(p => `${p.a === r.id ? p.b : p.a}: preferito ${p.preferred}`) : undefined,
+        options: r.options.map(o => `${o.label}: ${(o.gain * 100).toFixed(1)} pt${o.sideEffects.length ? ` (worsens ${o.sideEffects.join(', ')})` : ''}`),
+        collides: clash.length ? clash.map(p => `${p.a === r.id ? p.b : p.a}: preferred ${p.preferred}`) : undefined,
       };
     }
   }

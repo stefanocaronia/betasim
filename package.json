@@ -1,6 +1,6 @@
 {
   "name": "betasim",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Simulated beta testers and YAML tests for apps: engine golden cases, UI flows, persona-based usability simulation, compact reports for LLM iteration.",
   "type": "module",
   "private": true,

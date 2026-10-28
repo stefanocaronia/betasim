@@ -67,7 +67,8 @@ export function buildFindings(results, { personas, tasks, cfg }) {
       });
     });
     if (task.expected_seconds) {
-      const slow = rows.filter(([, r]) => r.medianT != null && r.medianT > 2 * task.expected_seconds);
+      // a persona's pace stretches what is expected of them: a screen reader's listening takes longer for everyone who uses one
+      const slow = rows.filter(([pid, r]) => r.medianT != null && r.medianT > 2 * task.expected_seconds * (byPersona[pid]?.pace ?? 1));
       if (slow.length && slow.length >= rows.length / 3) {
         out.push({ id: `U:${tid}:time`, severity: 'A', kind: 'usability', task: tid,
           title: `"${goal}": ${REASONS.time.label}, ${task.expected_seconds} s`,

@@ -157,6 +157,7 @@ tags: [cooking]          # tasks and targets can name personas by tag
 # the numbers, written out when there is no profile:
 #   tech 1–5 (practice with apps) · english 0–5 (only with ui_language: en) · vision none, presbyopia, low, blind (screen reader)
 #   motor fine, normal, busy (hands full or wet), unsteady · keyboard true (no mouse: Tab, arrows, Enter; a control out of reach stops them, far ones cost time) · explore 1–5 (opens menus and expanders) · reading 1–5 · patience 1–5 · hurry 1–5
+#   pace: how many times a task's expected_seconds this persona is expected to take (screen-reader: 3), so that the time finding does not flag every task for them
 ```
 
 ### Targets and coverage
@@ -184,7 +185,7 @@ The audiences the product is for, from the project's business plan, live in the 
 In `report/latest/`; the previous run moves to `report/history/` (twelve are kept).
 
 - `summary.md`: one screen, read first. Counts, what is new and solved, the targets, the findings by severity, success per task and persona.
-- `index.html`: the dashboard, one file, light and dark: targets and their trend, the task-persona map, the findings, the flows.
+- `index.html`: the dashboard, one file, light and dark, in tabs: an overview with the trend of the runs and the worst findings, the targets, the task-persona map, the findings, the remedies, coverage, the flows, and a card per persona (its profile, abilities, targets and hardest tasks). The open tab is in the address.
 - `findings.yaml`: each finding with a stable id, a severity (B blocks, A hurts, P is a detail), the evidence, the personas and targets hit, a proposal and, for usability, the simulated remedies. Ids: `E:` engine case, `F:` broken flow, `W:` flow over budget, `U:task:step:reason` usability, `U:small:` small target, `C:` feature with no flow, `L:` LLM tester.
 - `traces/<flow>.yaml`: the measured path, step by step. `results.json`: everything. `screens/`: screenshots of failures.
 

@@ -6,7 +6,7 @@ import { PKG_DIR } from './config.mjs';
 export const PROFILES_DIR = path.join(PKG_DIR, 'profiles');
 
 // what the model reads of a persona; a project's persona takes these from its profile and may change any of them
-const ABILITIES = ['age', 'tech', 'english', 'vision', 'motor', 'keyboard', 'explore', 'reading', 'patience', 'hurry'];
+const ABILITIES = ['age', 'tech', 'english', 'vision', 'motor', 'keyboard', 'explore', 'reading', 'patience', 'hurry', 'pace'];
 
 /** The project's personas, each with its profile's abilities under its own values. */
 export function loadPersonas(cfg) {

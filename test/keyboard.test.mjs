@@ -51,6 +51,20 @@ test('a control inside a shadow root is in the Tab order', async () => {
   assert.equal(r.keySteps, 4);
 });
 
+test('an item out of the Tab order beside one of its kind that holds the stop is reached with arrows, with no ARIA group', async () => {
+  const d = await fresh();
+  const r = await d.find('Insight +5', 'act');
+  assert.equal(r.keyboard, true);
+  assert.equal(r.keySteps, 7);
+});
+
+test('a label is reached through its field', async () => {
+  const d = await fresh();
+  const r = await d.find({ css: '.who' }, 'act');
+  assert.equal(r.keyboard, true);
+  assert.equal(r.keySteps, 6);
+});
+
 test('a clickable box the keyboard never reaches', async () => {
   const d = await fresh();
   const r = await d.find({ css: '.square' }, 'act');
