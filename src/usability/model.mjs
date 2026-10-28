@@ -3,26 +3,27 @@ import { clamp } from '../util.mjs';
 /*
  * The simulated tester. Every step of a measured path gets:
  *  - pFind: the chance of finding and choosing the right control at the first try, as a product of factors
- *    (hidden under an expander, off screen, icon without words, a hard word, a new concept, many choices, TalkBack, small text);
+ *    (hidden under an expander, off screen, icon without words, a hard word, a new concept, many choices, a screen reader, the keyboard, small text);
  *  - pMis: the chance of a wrong tap on the target (size against the person's hands, after Fitts);
- *  - t: seconds for the step (think, read the new screen, point, type), after the keystroke-level model.
+ *  - t: seconds for the step (think, read the new screen, point, type), after the keystroke-level model; with the keyboard, the Tab stops to the target.
  * The constants are plausible, not measured: the numbers are for comparing tasks, people and runs, not for predicting.
  */
 
 export const REASONS = {
-  hidden: { label: 'sta sotto un espansore', suggestion: 'portarlo in vista quando serve, o far dire all’espansore cosa c’è sotto' },
-  offscreen: { label: 'bisogna scorrere per trovarlo', suggestion: 'avvicinarlo, o accorciare ciò che sta sopra' },
-  icon: { label: 'è solo un’icona, senza parola', suggestion: 'aggiungere una parola, o un’icona più conosciuta' },
-  words: { label: 'la parola è difficile per chi sa poco inglese', suggestion: 'una parola più semplice; nell’app tradotta, controllare la traduzione' },
-  concept: { label: 'serve capire un’idea nuova', suggestion: 'spiegarla nel punto in cui serve, o farne a meno' },
-  choices: { label: 'ci sono troppe scelte sullo schermo', suggestion: 'ridurre o raggruppare le scelte' },
-  a11y: { label: 'TalkBack non lo trova o non lo annuncia come comando', suggestion: 'dare nome e ruolo all’elemento' },
-  a11yWeak: { label: 'TalkBack lo annuncia solo con il testo d’esempio: manca l’etichetta', suggestion: 'collegare l’etichetta al campo' },
-  ambiguous: { label: 'altri comandi sullo schermo hanno lo stesso nome', suggestion: 'nomi diversi per comandi diversi, o un nome che dica a cosa si riferisce' },
-  smallText: { label: 'il testo è piccolo per chi è presbite', suggestion: 'testo più grande nel punto critico' },
-  input: { label: 'c’è un campo data o ora da compilare', suggestion: 'valori pronti, o un selettore più semplice' },
-  small: { label: 'il bersaglio è piccolo e porta a tocchi sbagliati', suggestion: 'un bersaglio di almeno 48 dp' },
-  time: { label: 'ci vuole troppo rispetto all’atteso', suggestion: 'meno passaggi, o una strada corta per il caso comune' },
+  hidden: { label: 'it is under an expander', suggestion: 'bring it into view when it is needed, or have the expander say what it hides' },
+  offscreen: { label: 'one must scroll to find it', suggestion: 'move it closer, or shorten what is above it' },
+  icon: { label: 'it is an icon only, with no word', suggestion: 'add a word, or use a better-known icon' },
+  words: { label: 'the word is hard for some people', suggestion: 'a simpler word; in a translated app, check the translation' },
+  concept: { label: 'it needs a new idea to be understood', suggestion: 'explain it where it is needed, or do without it' },
+  choices: { label: 'there are too many choices on the screen', suggestion: 'fewer choices, or grouped' },
+  a11y: { label: 'a screen reader does not find it or does not announce it as a control', suggestion: 'give the element a name and a role' },
+  a11yWeak: { label: 'a screen reader announces only its placeholder: the label is missing', suggestion: 'tie the label to the field' },
+  keys: { label: 'the keyboard does not reach it', suggestion: 'a button or a link, or arrow keys inside its group' },
+  ambiguous: { label: 'other controls on the screen have the same name', suggestion: 'different names for different controls, or a name that says what it acts on' },
+  smallText: { label: 'the text is small for people with presbyopia', suggestion: 'larger text at the critical point' },
+  input: { label: 'there is a date or time field to fill in', suggestion: 'ready values, or a simpler picker' },
+  small: { label: 'the target is small and leads to wrong taps', suggestion: 'a target of at least 48 dp' },
+  time: { label: 'it takes much longer than expected', suggestion: 'fewer steps, or a short way for the common case' },
 };
 
 function termOf(step, cfg) {
@@ -35,6 +36,7 @@ function termOf(step, cfg) {
 export function stepModel(step, p, cfg) {
   const tech = p.tech ?? 3, eng = p.english ?? 3, explore = p.explore ?? 3, read = p.reading ?? 3, age = p.age ?? 35;
   const blind = p.vision === 'blind', low = p.vision === 'low', presbyopia = p.vision === 'presbyopia';
+  const keys = p.keyboard === true && !blind;   // no mouse: Tab, arrows and Enter (a screen reader has its own ways)
   const choices = step.screen?.choices ?? 8;
   const f = {};
   f.choices = blind ? 1 - clamp((choices - 5) * 0.012, 0, 0.3) : 1 - clamp((choices - 8) * 0.01 * (1.3 - tech * 0.2), 0, 0.2);
@@ -57,6 +59,7 @@ export function stepModel(step, p, cfg) {
     else if (!step.labelled) f.a11y = 0.15;
     else if (!step.actionable) f.a11y = 0.7;
   }
+  if (keys && step.keyboard === false) f.keys = 0.15;   // a path measured before the keyboard was counted says nothing of it
   if ((presbyopia || low) && step.fontPx && step.fontPx < 13) f.smallText = low ? 0.8 : 0.92;
   if (step.kind === 'input' && ['datetime-local', 'date', 'time'].includes(step.inputType)) f.input = 0.75 + 0.05 * tech;
   for (const k of Object.keys(f)) if (f[k] >= 0.999) delete f[k];
@@ -66,14 +69,14 @@ export function stepModel(step, p, cfg) {
 
   const W = Math.max(8, Math.min(step.w || 44, step.h || 44));
   const motorBase = { fine: 0.004, normal: 0.01, busy: 0.03, unsteady: 0.05 }[p.motor || 'normal'] ?? 0.01;
-  const pMis = blind ? 0.01 : clamp(motorBase * clamp((40 / W) ** 2, 0.3, 6) + (low ? 0.02 : 0) + (age >= 70 ? 0.012 : 0), 0, 0.5);
+  const pMis = blind || keys ? 0.01 : clamp(motorBase * clamp((40 / W) ** 2, 0.3, 6) + (low ? 0.02 : 0) + (age >= 70 ? 0.012 : 0), 0, 0.5);
 
   const think = 1.2 * (1 + (5 - tech) * 0.12) * (age >= 65 ? 1.35 : age <= 12 ? 1.1 : 1) * (1 - ((p.hurry ?? 3) - 3) * 0.05);
   const words = step.screenChanged ? (step.screen?.words ?? 0) : 0;
   const wps = 3.3 * (cfg.uiLanguage === 'en' ? 0.35 + 0.13 * eng : 1) * (age >= 70 ? 0.7 : 1) * (age <= 12 ? 0.6 : 1);
   const tRead = blind ? words * 0.5 / 2.5 : words * (0.08 + 0.07 * read) / wps;
   const slow = { fine: 0.9, normal: 1, busy: 1.2, unsteady: 1.6 }[p.motor || 'normal'] ?? 1;
-  const tPoint = blind ? (choices / 2) * 0.9 : (0.2 + 0.12 * Math.log2(1 + 250 / W)) * slow * (age >= 70 ? 1.3 : 1);
+  const tPoint = blind ? (choices / 2) * 0.9 : keys ? 0.4 + 0.25 * (step.keySteps ?? choices / 2) : (0.2 + 0.12 * Math.log2(1 + 250 / W)) * slow * (age >= 70 ? 1.3 : 1);
   let tInput = 0;
   if (step.kind === 'input') { tInput = (step.chars || 0) * (0.25 + 0.08 * (5 - tech)); if (f.input) tInput += 5 * (1 + 0.25 * (5 - tech)); }
   return { f, pFind, reason, term, pMis, t: think + tRead + tPoint + tInput };

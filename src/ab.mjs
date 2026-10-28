@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadDir, ensureDir } from './util.mjs';
+import { loadPersonas } from './personas.mjs';
 import { openTarget } from './run.mjs';
 import { runFlow } from './suites/flows.mjs';
 import { runUsability, audienceOf } from './suites/usability.mjs';
@@ -29,7 +30,7 @@ export async function runAB(cfg, suites, args) {
   const pick = xs => (only ? xs.filter(x => x.id.toLowerCase().includes(only)) : xs);
   const runs = +(args.runs || cfg.runs), seed = +(args.seed || cfg.seed);
   cfg.runs = runs;
-  const flows = loadDir(cfg.dirs.flows), tasks = pick(loadDir(cfg.dirs.tasks)), personas = cfg.personaDirs.flatMap(loadDir);
+  const flows = loadDir(cfg.dirs.flows), tasks = pick(loadDir(cfg.dirs.tasks)), personas = loadPersonas(cfg);
   const flowById = Object.fromEntries(flows.map(f => [f.id, f]));
   const say = line => { if (!args.quiet) console.log(line); };
   const base = path.join(cfg.reportDir, 'ab');
@@ -41,7 +42,7 @@ export async function runAB(cfg, suites, args) {
     for (const v of variants) {
       const t0 = Date.now(), dir = path.join(base, v.id);
       const ctx = { browser: target.browser, cfg, baseUrl: target.baseUrl, screensDir: path.join(dir, 'screens'), variant: v };
-      const results = { meta: { date: new Date().toLocaleString('it-IT'), runs, seed, personas: personas.length, suites, partial: !!only, variant: `${v.id} ${v.name}` }, engine: [], flows: [], usability: {} };
+      const results = { meta: { date: new Date().toLocaleString('en-GB'), runs, seed, personas: personas.length, suites, partial: !!only, variant: `${v.id} ${v.name}` }, engine: [], flows: [], usability: {} };
       const flowResults = {};
       if (suites.includes('flows')) {
         for (const f of pick(flows)) {
@@ -68,7 +69,7 @@ export async function runAB(cfg, suites, args) {
   }
   const cmp = compare(sides, tasks, personas, cfg);
   cmp.assumptions = assumptions(sides, tasks, personas, cfg, runs, seed);
-  cmp.meta = { date: new Date().toLocaleString('it-IT'), runs, seed, only, seconds: (Date.now() - began) / 1000, personas: personas.length };
+  cmp.meta = { date: new Date().toLocaleString('en-GB'), runs, seed, only, seconds: (Date.now() - began) / 1000, personas: personas.length };
   const text = summaryText(cfg, cmp);
   fs.writeFileSync(path.join(base, 'summary.md'), text);
   fs.writeFileSync(path.join(base, 'ab.json'), JSON.stringify(cmp, null, 1));
@@ -88,7 +89,7 @@ export function compare([a, b], tasks, personas, cfg) {
   const ua = a.results.usability, ub = b.results.usability;
   const both = Object.keys(ua).filter(t => ua[t].measurable && ub[t]?.measurable);
   const unmeasured = [...new Set([...Object.keys(ua), ...Object.keys(ub)])].filter(t => !both.includes(t))
-    .map(t => ({ task: t, A: ua[t]?.measurable ? null : ua[t]?.reason || 'non eseguito', B: ub[t]?.measurable ? null : ub[t]?.reason || 'non eseguito' }));
+    .map(t => ({ task: t, A: ua[t]?.measurable ? null : ua[t]?.reason || 'not run', B: ub[t]?.measurable ? null : ub[t]?.reason || 'not run' }));
   const cell = (u, t, p) => u[t].personas[p];
   const common = t => Object.keys(ua[t].personas).filter(p => ub[t].personas[p]);
   const worstOf = (u, t) => common(t).reduce((w, p) => (w == null || cell(u, t, p).success < cell(u, t, w).success ? p : w), null);
@@ -186,64 +187,64 @@ const pt = d => (d == null ? '—' : `${d >= 0 ? '+' : '−'}${Math.abs(d * 100)
 const mark = (d, tie) => (d == null ? '' : Math.abs(d) < tie ? '≈' : d > 0 ? '▲' : '▼');
 const secs = x => (x == null ? '—' : Math.round(x) + ' s');
 
-const critLine = s => (s.goal?.critical != null && s.critA != null ? ` · compiti critici, il più basso ${p1(s.critA)} → ${p1(s.critB)} (almeno ${p1(s.goal.critical)})` : '');
+const critLine = s => (s.goal?.critical != null && s.critA != null ? ` · critical tasks, lowest ${p1(s.critA)} → ${p1(s.critB)} (at least ${p1(s.goal.critical)})` : '');
 
 function floorLine(s, side) {
   const breaks = side === 'A' ? s.breaksA : s.breaksB, worst = side === 'A' ? s.worstA : s.worstB;
-  return breaks.length ? `${breaks.length} sotto (${breaks.slice(0, 3).map(b => `${b.who} ${b.task} ${p1(b.success)}`).join(', ')}${breaks.length > 3 ? ', …' : ''})`
-    : `nessuno sotto${worst ? `, il più basso ${p1(worst.success)} (${worst.task})` : ''}`;
+  return breaks.length ? `${breaks.length} below (${breaks.slice(0, 3).map(b => `${b.who} ${b.task} ${p1(b.success)}`).join(', ')}${breaks.length > 3 ? ', …' : ''})`
+    : `nobody below${worst ? `, lowest ${p1(worst.success)} (${worst.task})` : ''}`;
 }
 
 function summaryText(cfg, c) {
   const [A, B] = c.variants, L = [], tie = c.tie;
   const up = c.tasks.filter(t => t.d >= tie), down = c.tasks.filter(t => t.d <= -tie), even = c.tasks.filter(t => Math.abs(t.d) < tie);
   L.push(`# betasim A/B · ${cfg.name} · ${c.meta.date}`, '');
-  L.push(`A «${A.name}» contro B «${B.name}» · ${c.tasks.length} compiti misurati in tutte e due, ${c.meta.personas} persone · riuscita esatta del modello, tempi da ${c.meta.runs} prove (seme ${c.meta.seed}) · ${Math.round(c.meta.seconds)} s`);
-  L.push(`Sotto ${Math.round(tie * 100)} punto le due varianti sono pari (≈): il modello è plausibile, non misurato.`);
-  L.push('', `Flussi: A ${c.flows[0].ok}/${c.flows[0].total} · B ${c.flows[1].ok}/${c.flows[1].total}`);
+  L.push(`A "${A.name}" against B "${B.name}" · ${c.tasks.length} tasks measured in both, ${c.meta.personas} personas · exact success from the model, times from ${c.meta.runs} trials (seed ${c.meta.seed}) · ${Math.round(c.meta.seconds)} s`);
+  L.push(`Under ${Math.round(tie * 100)} point the two variants are even (≈): the model is plausible, not measured.`);
+  L.push('', `Flows: A ${c.flows[0].ok}/${c.flows[0].total} · B ${c.flows[1].ok}/${c.flows[1].total}`);
   c.flows.forEach((f, i) => f.failing.forEach(x => L.push(`✗ ${i ? 'B' : 'A'} ${x.id}: ${x.error}`)));
-  L.push('', '## In breve');
-  L.push(`Riuscita pesata: A ${p1(c.overall.a)} → B ${p1(c.overall.b)} (${pt(c.overall.b - c.overall.a)}). B meglio su ${up.length} compiti, peggio su ${down.length}, pari su ${even.length}.`);
+  L.push('', '## In short');
+  L.push(`Weighted success: A ${p1(c.overall.a)} → B ${p1(c.overall.b)} (${pt(c.overall.b - c.overall.a)}). B better on ${up.length} tasks, worse on ${down.length}, even on ${even.length}.`);
   const markets = c.segments.filter(s => s.kind !== 'floor' && s.a != null), floors = c.segments.filter(s => s.kind === 'floor' && s.a != null);
   if (markets.length) {
-    L.push('', '## Target di mercato: A → B (obiettivo)');
-    for (const s of markets) L.push(`${s.okA ? '✓' : '✗'}→${s.okB ? '✓' : '✗'} ${String(s.name).padEnd(24)} ${p1(s.a)} → ${p1(s.b)}  ${pt(s.d)} ${mark(s.d, tie)} (obiettivo ${p1(s.goal?.success)})${critLine(s)}`);
+    L.push('', '## Market targets: A → B (goal)');
+    for (const s of markets) L.push(`${s.okA ? '✓' : '✗'}→${s.okB ? '✓' : '✗'} ${String(s.name).padEnd(24)} ${p1(s.a)} → ${p1(s.b)}  ${pt(s.d)} ${mark(s.d, tie)} (goal ${p1(s.goal?.success)})${critLine(s)}`);
   }
   if (floors.length) {
-    L.push('', '## Impegno: nessuno sotto la soglia');
-    for (const s of floors) L.push(`${s.okA ? '✓' : '✗'}→${s.okB ? '✓' : '✗'} ${s.name} (soglia ${Math.round(s.floor * 100)}%): A ${floorLine(s, 'A')} · B ${floorLine(s, 'B')}`);
+    L.push('', '## Floors: nobody below the floor');
+    for (const s of floors) L.push(`${s.okA ? '✓' : '✗'}→${s.okB ? '✓' : '✗'} ${s.name} (floor ${Math.round(s.floor * 100)}%): A ${floorLine(s, 'A')} · B ${floorLine(s, 'B')}`);
   }
-  const taskLine = t => `${pt(t.d).padStart(9)} ${mark(t.d, tie)} ${t.task.padEnd(26)} ${p1(t.a)} → ${p1(t.b)} · ${t.tapsA} → ${t.tapsB} tocchi · ${secs(t.timeA)} → ${secs(t.timeB)}${t.critical ? ' · critico' : ''}`;
-  L.push('', '## Compiti che cambiano: riuscita media A → B · tocchi · tempo mediano');
+  const taskLine = t => `${pt(t.d).padStart(9)} ${mark(t.d, tie)} ${t.task.padEnd(26)} ${p1(t.a)} → ${p1(t.b)} · ${t.tapsA} → ${t.tapsB} taps · ${secs(t.timeA)} → ${secs(t.timeB)}${t.critical ? ' · critical' : ''}`;
+  L.push('', '## Tasks that change: average success A → B · taps · median time');
   for (const t of [...up, ...down]) L.push(taskLine(t));
-  if (!up.length && !down.length) L.push('Nessuno: tutti i compiti sono pari.');
-  if (even.length) L.push(`Pari: ${even.map(t => t.task + (t.tapsA !== t.tapsB ? ` (${t.tapsA} → ${t.tapsB} tocchi)` : '')).join(', ')}`);
-  L.push('', '## Persone: riuscita media A → B · il compito dove guadagna e quello dove perde di più');
-  for (const p of c.personas) L.push(`${pt(p.d).padStart(9)} ${mark(p.d, tie)} ${p.who.padEnd(22)} ${p1(p.a)} → ${p1(p.b)}${p.best && p.best.d >= tie ? ` · meglio ${p.best.task} ${pt(p.best.d)}` : ''}${p.worst && p.worst.d <= -tie ? ` · peggio ${p.worst.task} ${pt(p.worst.d)}` : ''}`);
+  if (!up.length && !down.length) L.push('None: every task is even.');
+  if (even.length) L.push(`Even: ${even.map(t => t.task + (t.tapsA !== t.tapsB ? ` (${t.tapsA} → ${t.tapsB} taps)` : '')).join(', ')}`);
+  L.push('', '## Personas: average success A → B · the task where they gain and where they lose most');
+  for (const p of c.personas) L.push(`${pt(p.d).padStart(9)} ${mark(p.d, tie)} ${p.who.padEnd(22)} ${p1(p.a)} → ${p1(p.b)}${p.best && p.best.d >= tie ? ` · better ${p.best.task} ${pt(p.best.d)}` : ''}${p.worst && p.worst.d <= -tie ? ` · worse ${p.worst.task} ${pt(p.worst.d)}` : ''}`);
   if (c.pairs.length) {
-    L.push('', `## Le coppie persona × compito che cambiano di più (${c.pairs.length} oltre ${Math.round(tie * 100)} punto)`);
+    L.push('', `## The persona × task pairs that change most (${c.pairs.length} over ${Math.round(tie * 100)} point)`);
     for (const x of c.pairs.slice(0, 15)) L.push(`${pt(x.d).padStart(9)} ${x.who} · ${x.task}  ${p1(x.a)} → ${p1(x.b)}`);
   }
   if ((c.assumptions || []).length) {
-    L.push('', '## Le ipotesi di una sola variante: quanto pesa il costo che il modello non vede');
-    const fl = r => r.floors.filter(x => x.breaks).map(x => `${x.name} ${x.breaks} sotto`).join(', ') || 'nessuno sotto le soglie';
+    L.push('', '## Assumptions of one variant only: how much the cost the model cannot see weighs');
+    const fl = r => r.floors.filter(x => x.breaks).map(x => `${x.name} ${x.breaks} below`).join(', ') || 'nobody below the floors';
     const other = v => (v === c.variants[0].id ? { id: c.variants[1].id, overall: c.overall.b } : { id: c.variants[0].id, overall: c.overall.a });
     for (const a of c.assumptions) {
       const o = other(a.variant);
-      L.push(`«${a.name}», solo in ${a.variant}, difficoltà ${a.difficulty}, ${a.steps} passi (${o.id} ${p1(o.overall)}):`);
-      for (const [label, r] of [['senza', a.without], ['così', a.as], ['doppio', a.double]]) L.push(`   ${label.padEnd(6)} ${a.variant} ${p1(r.overall)} (${pt(r.overall - o.overall)} su ${o.id}) · ${fl(r)}`);
+      L.push(`"${a.name}", only in ${a.variant}, difficulty ${a.difficulty}, ${a.steps} steps (${o.id} ${p1(o.overall)}):`);
+      for (const [label, r] of [['without', a.without], ['as is', a.as], ['double', a.double]]) L.push(`   ${label.padEnd(7)} ${a.variant} ${p1(r.overall)} (${pt(r.overall - o.overall)} on ${o.id}) · ${fl(r)}`);
     }
   }
-  L.push('', `## Cose da guardare: ${c.findings.both} in tutte e due`);
-  L.push(`Solo in A, sparite in B (${c.findings.onlyA.length})`);
+  L.push('', `## To look at: ${c.findings.both} in both`);
+  L.push(`Only in A, gone in B (${c.findings.onlyA.length})`);
   for (const f of c.findings.onlyA.slice(0, 12)) L.push(`- ${f.severity} ${f.id}  ${f.title}`);
-  L.push(`Solo in B, nuove (${c.findings.onlyB.length})`);
+  L.push(`Only in B, new (${c.findings.onlyB.length})`);
   for (const f of c.findings.onlyB.slice(0, 12)) L.push(`+ ${f.severity} ${f.id}  ${f.title}`);
   if (c.unmeasured.length) {
-    L.push('', '## Fuori dal confronto: non misurabili in una delle due');
+    L.push('', '## Out of the comparison: not measurable in one of the two');
     for (const u of c.unmeasured) L.push(`${u.task}: ${u.A ? `A ${String(u.A).slice(0, 120)}` : ''}${u.A && u.B ? ' · ' : ''}${u.B ? `B ${String(u.B).slice(0, 120)}` : ''}`);
   }
-  L.push('', 'Dettagli: index.html (la pagina del confronto), ab.json, e in A/ e B/ il report completo di ogni variante.');
+  L.push('', 'Details: index.html (the comparison page), ab.json, and in A/ and B/ the full report of each variant.');
   return L.join('\n') + '\n';
 }
 
@@ -255,21 +256,21 @@ export function abPage(cfg, c) {
   const delta = d => `<td class="num ${cls(d)}">${esc(pt(d))} ${mark(d, tie)}</td>`;
   const up = c.tasks.filter(t => t.d >= tie).length, down = c.tasks.filter(t => t.d <= -tie).length;
   const pills = [
-    ['Flussi A', `${c.flows[0].ok}/${c.flows[0].total}`, c.flows[0].failing.length ? 'bad' : 'ok'],
-    ['Flussi B', `${c.flows[1].ok}/${c.flows[1].total}`, c.flows[1].failing.length ? 'bad' : 'ok'],
-    ['Riuscita pesata', `${p1(c.overall.a)} → ${p1(c.overall.b)}`, Math.abs(c.overall.b - c.overall.a) < tie ? 'warn' : c.overall.b > c.overall.a ? 'ok' : 'bad'],
-    ['Compiti', `▲ ${up} · ▼ ${down} · ≈ ${c.tasks.length - up - down}`, down > up ? 'bad' : up ? 'ok' : 'warn'],
+    ['Flows A', `${c.flows[0].ok}/${c.flows[0].total}`, c.flows[0].failing.length ? 'bad' : 'ok'],
+    ['Flows B', `${c.flows[1].ok}/${c.flows[1].total}`, c.flows[1].failing.length ? 'bad' : 'ok'],
+    ['Weighted success', `${p1(c.overall.a)} → ${p1(c.overall.b)}`, Math.abs(c.overall.b - c.overall.a) < tie ? 'warn' : c.overall.b > c.overall.a ? 'ok' : 'bad'],
+    ['Tasks', `▲ ${up} · ▼ ${down} · ≈ ${c.tasks.length - up - down}`, down > up ? 'bad' : up ? 'ok' : 'warn'],
   ].map(([k, v, s]) => `<div class="pill ${s}"><span class="k">${k}</span><span class="v">${esc(v)}</span></div>`).join('');
   const segCards = c.segments.filter(s => s.a != null).map(s => s.kind === 'floor'
-    ? `<article class="target floor ${s.okB ? 'ok' : 'miss'}"><header><h3>${esc(s.name)}</h3><span class="kind">impegno</span></header>
-      <div class="score"><span class="big">${s.breaksA.length} → ${s.breaksB.length}</span><span class="goal">sotto la soglia del ${Math.round(s.floor * 100)}%</span></div>
+    ? `<article class="target floor ${s.okB ? 'ok' : 'miss'}"><header><h3>${esc(s.name)}</h3><span class="kind">floor</span></header>
+      <div class="score"><span class="big">${s.breaksA.length} → ${s.breaksB.length}</span><span class="goal">below the ${Math.round(s.floor * 100)}% floor</span></div>
       <p class="status">A: ${esc(floorLine(s, 'A'))}</p><p class="status">B: ${esc(floorLine(s, 'B'))}</p></article>`
-    : `<article class="target ${s.okB ? 'ok' : 'miss'}"><header><h3>${esc(s.name)}</h3><span class="w">peso ${s.weight}</span></header>
-      <div class="score"><span class="big">${p1(s.b)}</span><span class="goal">B · A ${p1(s.a)} · obiettivo ${p1(s.goal?.success)}</span></div>
-      <p class="status ${cls(s.d)}">${esc(pt(s.d))} ${mark(s.d, tie)}</p>${s.goal?.critical != null && s.critA != null ? `<p class="who">Compiti critici, il più basso: ${p1(s.critA)} → ${p1(s.critB)} (almeno ${p1(s.goal.critical)})</p>` : ''}</article>`).join('');
-  const taskRows = c.tasks.map(t => `<tr><th scope="row">${esc(t.task)}${t.critical ? ' <span class="kind">critico</span>' : ''}</th><td class="num">${p1(t.a)}</td><td class="num">${p1(t.b)}</td>${delta(t.d)}<td class="num">${t.tapsA} → ${t.tapsB}</td><td class="num">${secs(t.timeA)} → ${secs(t.timeB)}</td></tr>`).join('');
+    : `<article class="target ${s.okB ? 'ok' : 'miss'}"><header><h3>${esc(s.name)}</h3><span class="w">weight ${s.weight}</span></header>
+      <div class="score"><span class="big">${p1(s.b)}</span><span class="goal">B · A ${p1(s.a)} · goal ${p1(s.goal?.success)}</span></div>
+      <p class="status ${cls(s.d)}">${esc(pt(s.d))} ${mark(s.d, tie)}</p>${s.goal?.critical != null && s.critA != null ? `<p class="who">Critical tasks, lowest: ${p1(s.critA)} → ${p1(s.critB)} (at least ${p1(s.goal.critical)})</p>` : ''}</article>`).join('');
+  const taskRows = c.tasks.map(t => `<tr><th scope="row">${esc(t.task)}${t.critical ? ' <span class="kind">critical</span>' : ''}</th><td class="num">${p1(t.a)}</td><td class="num">${p1(t.b)}</td>${delta(t.d)}<td class="num">${t.tapsA} → ${t.tapsB}</td><td class="num">${secs(t.timeA)} → ${secs(t.timeB)}</td></tr>`).join('');
   const personRows = c.personas.map(p => `<tr><th scope="row">${esc(p.who)}</th><td class="num">${p1(p.a)}</td><td class="num">${p1(p.b)}</td>${delta(p.d)}<td>${p.best && p.best.d >= tie ? `${esc(p.best.task)} <span class="up">${esc(pt(p.best.d))}</span>` : ''}${p.worst && p.worst.d <= -tie ? `${p.best && p.best.d >= tie ? ' · ' : ''}${esc(p.worst.task)} <span class="down">${esc(pt(p.worst.d))}</span>` : ''}</td></tr>`).join('');
-  const fl = (xs, sign) => xs.length ? `<ul class="plainlist">${xs.map(f => `<li><span class="sev">${sign} ${esc(f.severity)}</span> ${esc(f.title)} <code>${esc(f.id)}</code></li>`).join('')}</ul>` : '<p class="muted">Nessuna.</p>';
+  const fl = (xs, sign) => xs.length ? `<ul class="plainlist">${xs.map(f => `<li><span class="sev">${sign} ${esc(f.severity)}</span> ${esc(f.title)} <code>${esc(f.id)}</code></li>`).join('')}</ul>` : '<p class="muted">None.</p>';
   const failing = c.flows.flatMap((f, i) => f.failing.map(x => `<li><b>${i ? 'B' : 'A'}</b> ${esc(x.id)}: ${esc(x.error)}</li>`)).join('');
   return `${pageHead(`${cfg.name} A/B`)}
 <style>
@@ -287,24 +288,24 @@ export function abPage(cfg, c) {
 </style>
 <div class="wrap">
   <header class="top">
-    <div><h1>A/B · ${esc(A.name)} contro ${esc(B.name)}</h1><p class="run">betasim · ${esc(cfg.name)} · ${esc(c.meta.date)} · ${c.tasks.length} compiti, ${c.meta.personas} persone · riuscita esatta del modello, tempi da ${c.meta.runs} prove · seme ${c.meta.seed}</p></div>
+    <div><h1>A/B · ${esc(A.name)} against ${esc(B.name)}</h1><p class="run">betasim · ${esc(cfg.name)} · ${esc(c.meta.date)} · ${c.tasks.length} tasks, ${c.meta.personas} personas · exact success from the model, times from ${c.meta.runs} trials · seed ${c.meta.seed}</p></div>
     <div class="counts">${pills}</div>
   </header>
-  <p class="lede">Le stesse persone simulate fanno gli stessi compiti sulle due varianti, A «${esc(A.name)}» e B «${esc(B.name)}». La riuscita è calcolata esatta dal modello: una differenza viene dai percorsi, non dal caso. Sotto ${Math.round(tie * 100)} punto le varianti sono pari (≈), perché le costanti del modello sono plausibili, non misurate.</p>
-  ${failing ? `<section><h2>Flussi rotti</h2><ul class="plainlist">${failing}</ul></section>` : ''}
-  <section><h2>Target</h2><div class="targets">${segCards}</div></section>
-  <section><h2>Compiti</h2><p class="lede">La riuscita media delle persone del pubblico di ogni compito, dal guadagno più grande di B alla perdita più grande.</p>
-    <div class="scroll"><table class="plain"><thead><tr><th scope="col">Compito</th><th scope="col" class="num">A</th><th scope="col" class="num">B</th><th scope="col" class="num">B − A</th><th scope="col" class="num">tocchi</th><th scope="col" class="num">tempo mediano</th></tr></thead><tbody>${taskRows}</tbody></table></div></section>
-  <section><h2>Persone</h2><p class="lede">La riuscita media di ogni persona sui compiti pensati per lei, e dove B le fa guadagnare e perdere di più.</p>
-    <div class="scroll"><table class="plain"><thead><tr><th scope="col">Persona</th><th scope="col" class="num">A</th><th scope="col" class="num">B</th><th scope="col" class="num">B − A</th><th scope="col">meglio · peggio</th></tr></thead><tbody>${personRows}</tbody></table></div></section>
-  ${(c.assumptions || []).length ? `<section><h2>Le ipotesi</h2><p class="lede">Il modello non vede tutto: quello che non vede, un flusso lo scrive come un’idea da capire su un passo di una sola variante. Qui il risultato senza quell’ipotesi e con il doppio del suo peso.</p>
-    <div class="scroll"><table class="plain"><thead><tr><th scope="col">Ipotesi</th><th scope="col">peso</th><th scope="col" class="num">riuscita pesata</th><th scope="col">sotto le soglie</th></tr></thead><tbody>${c.assumptions.flatMap(a => [['senza', a.without], ['così', a.as], ['doppio', a.double]].map(([label, r], k) => `<tr>${k ? '<th scope="row"></th>' : `<th scope="row">«${esc(a.name)}», solo in ${esc(a.variant)} (${a.steps} passi)</th>`}<td>${label} (${r.difficulty})</td><td class="num">${p1(r.overall)}</td><td>${esc(r.floors.filter(x => x.breaks).map(x => `${x.name} ${x.breaks}`).join(', ') || 'nessuno')}</td></tr>`)).join('')}</tbody></table></div></section>` : ''}
-  <section><h2>Cose da guardare</h2><p class="lede">${c.findings.both} sono in tutte e due le varianti.</p>
-    <h3>Solo in A: B le risolve (${c.findings.onlyA.length})</h3>${fl(c.findings.onlyA, '−')}
-    <h3>Solo in B: B le introduce (${c.findings.onlyB.length})</h3>${fl(c.findings.onlyB, '+')}
+  <p class="lede">The same simulated personas do the same tasks on the two variants, A "${esc(A.name)}" and B "${esc(B.name)}". Success is computed exactly from the model: a difference comes from the paths, not from chance. Under ${Math.round(tie * 100)} point the variants are even (≈), because the model's constants are plausible, not measured.</p>
+  ${failing ? `<section><h2>Broken flows</h2><ul class="plainlist">${failing}</ul></section>` : ''}
+  <section><h2>Targets</h2><div class="targets">${segCards}</div></section>
+  <section><h2>Tasks</h2><p class="lede">The average success of each task's audience, from B's biggest gain to its biggest loss.</p>
+    <div class="scroll"><table class="plain"><thead><tr><th scope="col">Task</th><th scope="col" class="num">A</th><th scope="col" class="num">B</th><th scope="col" class="num">B − A</th><th scope="col" class="num">taps</th><th scope="col" class="num">median time</th></tr></thead><tbody>${taskRows}</tbody></table></div></section>
+  <section><h2>Personas</h2><p class="lede">Each persona's average success on the tasks meant for them, and where B makes them gain and lose most.</p>
+    <div class="scroll"><table class="plain"><thead><tr><th scope="col">Persona</th><th scope="col" class="num">A</th><th scope="col" class="num">B</th><th scope="col" class="num">B − A</th><th scope="col">better · worse</th></tr></thead><tbody>${personRows}</tbody></table></div></section>
+  ${(c.assumptions || []).length ? `<section><h2>Assumptions</h2><p class="lede">The model does not see everything: what it misses, a flow writes as an idea to grasp on a step of one variant only. Here, the result without that assumption and with twice its weight.</p>
+    <div class="scroll"><table class="plain"><thead><tr><th scope="col">Assumption</th><th scope="col">weight</th><th scope="col" class="num">weighted success</th><th scope="col">below the floors</th></tr></thead><tbody>${c.assumptions.flatMap(a => [['without', a.without], ['as is', a.as], ['double', a.double]].map(([label, r], k) => `<tr>${k ? '<th scope="row"></th>' : `<th scope="row">"${esc(a.name)}", only in ${esc(a.variant)} (${a.steps} steps)</th>`}<td>${label} (${r.difficulty})</td><td class="num">${p1(r.overall)}</td><td>${esc(r.floors.filter(x => x.breaks).map(x => `${x.name} ${x.breaks}`).join(', ') || 'none')}</td></tr>`)).join('')}</tbody></table></div></section>` : ''}
+  <section><h2>To look at</h2><p class="lede">${c.findings.both} are in both variants.</p>
+    <h3>Only in A: B solves them (${c.findings.onlyA.length})</h3>${fl(c.findings.onlyA, '−')}
+    <h3>Only in B: B brings them in (${c.findings.onlyB.length})</h3>${fl(c.findings.onlyB, '+')}
   </section>
-  ${c.unmeasured.length ? `<section><h2>Fuori dal confronto</h2><ul class="plainlist">${c.unmeasured.map(u => `<li>${esc(u.task)}: ${esc([u.A && 'A ' + u.A, u.B && 'B ' + u.B].filter(Boolean).join(' · '))}</li>`).join('')}</ul></section>` : ''}
-  <p class="foot">I tester sono simulati: il confronto dice quale delle due strutture è più facile da percorrere per chi, non quanto piacerà. Il report completo di ogni variante sta nelle cartelle A/ e B/.</p>
+  ${c.unmeasured.length ? `<section><h2>Out of the comparison</h2><ul class="plainlist">${c.unmeasured.map(u => `<li>${esc(u.task)}: ${esc([u.A && 'A ' + u.A, u.B && 'B ' + u.B].filter(Boolean).join(' · '))}</li>`).join('')}</ul></section>` : ''}
+  <p class="foot">The testers are simulated: the comparison says which of the two structures is easier to walk, and for whom, not how much it will be liked. The full report of each variant is in the A/ and B/ folders.</p>
 </div>
 `;
 }

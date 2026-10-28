@@ -28,7 +28,7 @@ npx betasim look http://localhost:5173/     # screenshots at 375 and 1280, light
 npx betasim flows                           # the flows in test/flows/*.yaml
 ```
 
-`init` writes `test/betasim.yaml` and a first flow, keeps the reports out of git, and points the project's `CLAUDE.md` or `AGENTS.md` to [GUIDA-AI.md](GUIDA-AI.md), the guide for the AI working on the site. `look` takes, at each width and theme, a screenshot, the console errors, the files that failed to load and the accessibility problems [axe](https://github.com/dequelabs/axe-core) finds; `--aria` adds the page as a screen reader reads it, and `--click <selector>`, `--press <key>` and `--wait <ms>` act before the shot, in order. It exits with 1 when it finds something to look at.
+`init` writes `test/betasim.yaml` and a first flow, keeps the reports out of git, and points the project's `CLAUDE.md` or `AGENTS.md` to [AI-GUIDE.md](AI-GUIDE.md), the guide for the AI working on the site. `look` takes, at each width and theme, a screenshot, the console errors, the files that failed to load and the accessibility problems [axe](https://github.com/dequelabs/axe-core) finds; `--aria` adds the page as a screen reader reads it, and `--click <selector>`, `--press <key>` and `--wait <ms>` act before the shot, in order. It exits with 1 when it finds something to look at.
 
 ## Commands
 
@@ -52,7 +52,7 @@ test/
   engine/*.yaml    engine cases
   flows/*.yaml     flows
   tasks/*.yaml     tasks for the simulated testers
-  personas/*.yaml  extra personas (optional)
+  personas/*.yaml  the project's personas, from its targets
   report/          results (not versioned)
 ```
 
@@ -73,7 +73,7 @@ target:
   disclosure: "[aria-expanded=false]" # expanders ("More options")
 adapter: adapter.mjs
 ui_language: native                   # native: the app will be translated; en: people use it in English
-personas: [builtin]                   # the built-in personas, plus any project folders
+personas: [builtin, personas]         # betasim's generic profiles, plus the project's folders
 targets: targets.yaml                 # the audiences, below
 features: features.yaml               # the features, for coverage
 runs: 300
@@ -142,38 +142,40 @@ critical: true           # a persona stopping here is a blocker
 expected_seconds: 8
 ```
 
-### A persona
+### Personas and profiles
+
+betasim ships generic profiles in `profiles/`: abilities only, no name or story. `expert`, `average`, `senior`, `screen-reader`, `keyboard`, `low-vision`, `hurried`, `child`, `second-language`, `impatient`. `personas: [builtin]` uses them as they are.
+
+A project's personas are its own users, written in `test/personas/` from its targets. Each starts from a profile and changes only what differs:
 
 ```yaml
 name: Pina
-age: 78
+age: 82
+profile: senior          # takes the profile's numbers below; any of them can be written here instead
 summary: Retired; uses WhatsApp and photos, her grandson sets up the rest.
-tags: [cooking, home]
-tech: 1              # practice with apps, 1 to 5
-english: 0           # 0 to 5, only with ui_language: en
-vision: presbyopia   # none, presbyopia, low, blind (screen reader)
-motor: unsteady      # fine, normal, busy (hands full or wet), unsteady
-explore: 1           # how much they open menus and expanders, 1 to 5
-reading: 4           # how much they read
-patience: 2          # attempts before giving up
-hurry: 1
+tags: [cooking]          # tasks and targets can name personas by tag
+# the numbers, written out when there is no profile:
+#   tech 1–5 (practice with apps) · english 0–5 (only with ui_language: en) · vision none, presbyopia, low, blind (screen reader)
+#   motor fine, normal, busy (hands full or wet), unsteady · keyboard true (no mouse: Tab, arrows, Enter; a control out of reach stops them, far ones cost time) · explore 1–5 (opens menus and expanders) · reading 1–5 · patience 1–5 · hurry 1–5
 ```
-
-Eighteen built-in personas are in `personas/`, from a home cook to a blind user with a screen reader.
 
 ### Targets and coverage
 
-The audiences the product is for, from the project's business plan, live in the project:
+The audiences the product is for, from the project's business plan, live in the project. A market target has a weight and a goal; a floor is a promise never traded for gains:
 
 ```yaml
 - id: cooking
   name: People who cook
   weight: 3                              # how much it counts, 1 to 3
-  personas: [cuoca-di-casa, chef, nonna]
+  personas: [pina, marco]
   goal: {success: 0.95, critical: 0.9}   # weighted success to reach, and the minimum on critical tasks
+- id: everyone
+  name: Everyone can use it
+  floor: 0.8                             # nobody below 80% on any task meant for them
+  personas: [senior, low-vision, screen-reader]
 ```
 
-A target's score is its members' success on their tasks, weighted by how often the tasks happen. Each finding names the targets it touches.
+`init` writes the `everyone` floor; remove it only on purpose. A market target's score is its members' success on their tasks, weighted by how often the tasks happen; a floor below its threshold is a finding before any market gain. Each finding names the targets it touches.
 
 `features.yaml` lists the app's features; flows and cases declare theirs with `covers: [id, ...]`. The report says which features no flow goes through.
 

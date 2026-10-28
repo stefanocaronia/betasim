@@ -97,7 +97,8 @@ export async function runFlow(ctx, flow) {
         const changed = !prev || prev.route !== screen.route || prev.layer !== screen.layer;
         res.trace.push({
           step: i + 1, kind: cmd === 'tapOn' ? 'tap' : 'input', target, name: r.name, a11yName: r.a11yName, nameSource: r.nameSource, role: r.role, w: r.w, h: r.h,
-          offscreen: r.offscreen, iconOnly: r.iconOnly, labelled: r.labelled, actionable: r.actionable, disclosure: r.disclosure, disclosureHint: r.disclosure ? namesNext(steps, i, own, r) : undefined,
+          offscreen: r.offscreen, iconOnly: r.iconOnly, labelled: r.labelled, actionable: r.actionable, keyboard: r.keyboard, keySteps: r.keySteps,
+          disclosure: r.disclosure, disclosureHint: r.disclosure ? namesNext(steps, i, own, r) : undefined,
           fontPx: r.fontPx, inputType: r.inputType, chars: text != null ? String(text).length : 0, match: r.level,
           geo: r.geo, dupes: r.dupes, dupesNear: r.dupesNear, reveal, screen, screenChanged: changed, ...notes,
         });

@@ -1,0 +1,11 @@
+name: Child
+summary: Plays on tablets and phones; still reads slowly, explores by tapping everything, little patience.
+age: 10
+tech: 4
+english: 1
+vision: none
+motor: normal
+explore: 5
+reading: 1
+patience: 1
+hurry: 4

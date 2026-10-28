@@ -29,7 +29,7 @@ export async function loadConfig(configPath) {
     ...(raw.target || {}),
   };
   if (target.serve) target.serve = rel(target.serve);
-  const personaDirs = (raw.personas || ['builtin']).map(p => (p === 'builtin' ? path.join(PKG_DIR, 'personas') : rel(p)));
+  const personaDirs = (raw.personas || ['builtin']).map(p => (p === 'builtin' ? path.join(PKG_DIR, 'profiles') : rel(p)));
   const cfg = {
     name: raw.name || path.basename(path.dirname(dir)),
     file, dir, target, personaDirs,

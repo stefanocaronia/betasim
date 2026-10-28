@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keyboard</title>
+<style>
+  body { margin: 0; padding: 16px; font: 16px sans-serif; }
+  button, [role=tab], .square { display: inline-block; min-width: 120px; min-height: 48px; }
+</style>
+</head>
+<body>
+<button>First</button>
+<button>Second</button>
+<div class="square" onclick="this.textContent = 'moved'">E4</div>
+<div role="tablist" aria-label="Sections">
+  <button role="tab" tabindex="0" aria-selected="true">Lore</button>
+  <button role="tab" tabindex="-1" aria-selected="false">Documents</button>
+</div>
+<div id="card"></div>
+<script>
+  // a control inside an open shadow root, in the Tab order as the page's own
+  document.getElementById('card').attachShadow({ mode: 'open' }).innerHTML = '<button>Inside</button>';
+</script>
+</body>
+</html>

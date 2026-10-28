@@ -45,15 +45,15 @@ async function doMove(d, m) {
   switch (m.cmd) {
     case 'tap': {
       const r = await d.tap(m.target);
-      return r.ok ? { ok: true, did: `tocco «${r.name.slice(0, 60)}»` } : { ok: false, error: `non trovo «${show(m.target)}» da toccare${r.error && r.error !== 'not found' ? ` (${r.error})` : ''}`, visible: r.candidates };
+      return r.ok ? { ok: true, did: `tap "${r.name.slice(0, 60)}"` } : { ok: false, error: `nothing to tap called "${show(m.target)}"${r.error && r.error !== 'not found' ? ` (${r.error})` : ''}`, visible: r.candidates };
     }
     case 'type': {
       const r = await d.input(m.target, m.text ?? '');
-      return r.ok ? { ok: true, did: `scrivo «${m.text}» in «${r.name.slice(0, 40)}»` } : { ok: false, error: `non trovo il campo «${show(m.target)}»`, visible: r.candidates };
+      return r.ok ? { ok: true, did: `type "${m.text}" into "${r.name.slice(0, 40)}"` } : { ok: false, error: `no field called "${show(m.target)}"`, visible: r.candidates };
     }
     case 'wait':
-      if (!(m.ms > 0)) return { ok: false, error: 'quanto aspetto? per esempio wait: 3m' };
-      await d.advance(m.ms); return { ok: true, did: `aspetto ${fmtDur(m.ms)}` };
+      if (!(m.ms > 0)) return { ok: false, error: 'how long? for example wait: 3m' };
+      await d.advance(m.ms); return { ok: true, did: `wait ${fmtDur(m.ms)}` };
     case 'scroll': {
       // the box that scrolls under the finger (the wheel does not move it while the fake clock is paused)
       const vp = d.cfg.target.viewport;
@@ -61,15 +61,15 @@ async function doMove(d, m) {
         let el = point(x, y);
         while (el && !(el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = up(el);
         (el || document.scrollingElement).scrollBy(0, dy);
-      }), { dy:m.dir === 'up' ? -450 : 450, x: vp.width / 2, y: vp.height / 2 });
+      }), { dy: m.dir === 'up' ? -450 : 450, x: vp.width / 2, y: vp.height / 2 });
       await d.settle();
-      return { ok: true, did: `scorro ${m.dir === 'up' ? 'in su' : 'in giù'}` };
+      return { ok: true, did: `scroll ${m.dir === 'up' ? 'up' : 'down'}` };
     }
-    case 'swipe': { const r = await d.swipe(m.dir); return r.ok ? { ok: true, did: `trascino il dito verso ${m.dir === 'LEFT' ? 'sinistra' : 'destra'}` } : { ok: false, error: 'non riesco a scorrere qui' }; }
+    case 'swipe': { const r = await d.swipe(m.dir); return r.ok ? { ok: true, did: `swipe ${m.dir === 'LEFT' ? 'left' : 'right'}` } : { ok: false, error: 'nothing to swipe here' }; }
     case 'back':
       if (d.cfg.adapter.back) await d.cfg.adapter.back(d.page); else await d.page.goBack();
-      await d.settle(); return { ok: true, did: 'torno indietro' };
-    default: return { ok: false, error: 'mossa non capita: usa tap, type, wait, scroll, swipe o back' };
+      await d.settle(); return { ok: true, did: 'back' };
+    default: return { ok: false, error: 'move not understood: use tap, type, wait, scroll, swipe or back' };
   }
 }
 
@@ -121,12 +121,12 @@ async function describe(d) {
   const aria = await d.aria();
   const notice = t.toast ? await d.page.evaluate(inPage((sel, { all }) => all(document, sel).map(e => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · ')), t.toast) : '';
   const now = await d.page.evaluate(() => Date.now());
-  const clock = new Date(now).toLocaleString('it-IT', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: t.timezone });
+  const clock = new Date(now).toLocaleString(t.locale || 'en-GB', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: t.timezone });
   return { aria, notice, clock };
 }
 
 export async function play(cfg, args) {
-  if (!args.session) { console.error('play: --session <cartella> è obbligatorio'); return 1; }
+  if (!args.session) { console.error('play: --session <folder> is required'); return 1; }
   const dir = path.resolve(args.session);
   ensureDir(dir);
   const actsFile = path.join(dir, ACTS);
@@ -148,14 +148,14 @@ export async function play(cfg, args) {
     if (d.errors.length) console.error('page error: ' + d.errors[0]);
     await d.close();
     const out = {
-      mossa: acts.length,
-      ora: scr.clock,
-      esito: !last ? 'hai appena aperto l’app' : last.ok ? last.did : `${last.error}: non è successo niente`,
-      ...(last && !last.ok && last.visible ? { comandi_sullo_schermo: last.visible } : {}),
-      ...(interruption ? { interruzione: interruption } : {}),
-      ...(scr.notice ? { avviso: scr.notice } : {}),
-      immagine: shot,
-      schermo: scr.aria,
+      move: acts.length,
+      time: scr.clock,
+      outcome: !last ? 'you just opened the app' : last.ok ? last.did : `${last.error}: nothing happened`,
+      ...(last && !last.ok && last.visible ? { controls_on_screen: last.visible } : {}),
+      ...(interruption ? { interruption } : {}),
+      ...(scr.notice ? { notice: scr.notice } : {}),
+      image: shot,
+      screen: scr.aria,
     };
     console.log(toYaml(out));
     return 0;

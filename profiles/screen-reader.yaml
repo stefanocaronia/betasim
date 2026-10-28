@@ -1,0 +1,11 @@
+name: Screen reader user
+summary: Blind, uses a screen reader with skill; hears the controls one by one and needs each to have a name and a role.
+age: 45
+tech: 4
+english: 3
+vision: blind
+motor: normal
+explore: 3
+reading: 5
+patience: 4
+hurry: 2

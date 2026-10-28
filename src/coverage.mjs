@@ -23,8 +23,8 @@ export function coverage(features, flows, engineCases, results) {
 export function coverageFindings(cov) {
   const out = [];
   for (const r of cov.rows) {
-    if (r.status === 'missing') out.push({ id: `C:${r.id}`, severity: r.critical ? 'A' : 'P', kind: 'coverage', title: `Nessun flusso prova «${r.name}»${r.area ? ` (${r.area})` : ''}`, evidence: [r.decision ? `decisione ${r.decision}` : 'da features.yaml'], suggestion: 'scrivere un flusso che la attraversi, con covers: [' + r.id + ']' });
+    if (r.status === 'missing') out.push({ id: `C:${r.id}`, severity: r.critical ? 'A' : 'P', kind: 'coverage', title: `No flow tries "${r.name}"${r.area ? ` (${r.area})` : ''}`, evidence: [r.decision ? `decision ${r.decision}` : 'from features.yaml'], suggestion: 'write a flow that goes through it, with covers: [' + r.id + ']' });
   }
-  if (cov.unknown.length) out.push({ id: 'C:unknown', severity: 'P', kind: 'coverage', title: 'Flussi o casi che citano funzioni che non esistono in features.yaml', evidence: cov.unknown.slice(0, 8), suggestion: 'correggere l’id nel covers, o aggiungere la funzione a features.yaml' });
+  if (cov.unknown.length) out.push({ id: 'C:unknown', severity: 'P', kind: 'coverage', title: 'Flows or cases that name features missing from features.yaml', evidence: cov.unknown.slice(0, 8), suggestion: 'fix the id in covers, or add the feature to features.yaml' });
   return out;
 }

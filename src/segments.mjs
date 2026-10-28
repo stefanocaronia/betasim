@@ -1,7 +1,7 @@
 /**
  * Targets, from the project's business plan. Two kinds:
  *  - market: an audience with a weight (what to fix first) and a goal on its weighted success;
- *  - floor ("impegno"): a promise that is never traded for market gains: none of its people falls below
+ *  - floor: a promise that is never traded for market gains: none of its people falls below
  *    the floor on any task meant for them.
  * A market score is the success of its personas on the tasks meant for them, weighted by how often each task happens.
  */
@@ -42,9 +42,9 @@ export function floorFindings(segScores, personas) {
   const who = id => { const p = personas.find(x => x.id === id); return p ? `${p.name || id} (${p.age ?? '?'})` : id; };
   return segScores.filter(s => s.kind === 'floor' && s.breaks.length).map(s => ({
     id: `T:${s.id}`, severity: s.breaks.some(b => b.critical) ? 'B' : 'A', kind: 'floor', personas: [...new Set(s.breaks.map(b => b.persona))],
-    title: `Sotto la soglia d’impegno per «${s.name}»: ${s.breaks.length} ${s.breaks.length === 1 ? 'compito' : 'compiti'} sotto il ${Math.round(s.floor * 100)}%`,
-    evidence: [s.breaks.slice(0, 6).map(b => `${who(b.persona)} ${Math.round(b.success * 100)}% su ${b.task}`).join(', ')],
-    suggestion: 'viene prima dei target di mercato: una soluzione che rende di più al mercato ma lascia qualcuno sotto la soglia non va bene',
+    title: `Below the floor promised to "${s.name}": ${s.breaks.length} ${s.breaks.length === 1 ? 'task' : 'tasks'} under ${Math.round(s.floor * 100)}%`,
+    evidence: [s.breaks.slice(0, 6).map(b => `${who(b.persona)} ${Math.round(b.success * 100)}% on ${b.task}`).join(', ')],
+    suggestion: 'comes before the market targets: a fix that gains more for the market but leaves someone below the floor is not acceptable',
   }));
 }
 

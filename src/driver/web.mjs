@@ -43,7 +43,8 @@ export const inPage = fn => new Function('arg', `return (${fn})(arg, (${deepDom}
 // Runs in the page. Finds what a person would tap: by visible text, by accessible label, by id or css,
 // only inside the top layer (an open sheet hides what is behind it) and never inside ignored parts.
 const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, closest, inside, point }) => {
-  const norm = s => String(s ?? '').replace(/\s+/g, ' ').trim();
+  // the words as a person reads them: without the invisible marks that isolate a name or set a direction in a page right to left
+  const norm = s => String(s ?? '').replace(/[‎‏‪-‮⁦-⁩]/g, '').replace(/\s+/g, ' ').trim();
   const low = s => norm(s).toLowerCase();
   const ignored = el => !!(ignore && closest(el, ignore));
   const visible = el => {
@@ -57,6 +58,9 @@ const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, c
     if (found.length) { root = found[found.length - 1]; layer = sel; break; }
   }
   const ACT = 'button,a[href],input,select,textarea,summary,[role=button],[role=switch],[role=tab],[role=menuitem],[role=link],[role=checkbox],[role=radio],[role=option],[data-act],[data-go],[data-route],[onclick]';
+  const FOCUSABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable]';
+  const GROUPS = '[role=tablist],[role=radiogroup],[role=toolbar],[role=grid],[role=listbox],[role=menu],[role=menubar],[role=tree]';
+  const tabbable = el => el.tabIndex >= 0 && !el.disabled && !closest(el, '[inert]') && visible(el);
   const textOf = el => norm(el.innerText ?? el.textContent);
   const isFieldEl = el => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
   const nameOf = el => el.getAttribute('aria-label') || (isFieldEl(el) ? fieldLabel(el) : textOf(el)) || (el.tagName === 'INPUT' && ['radio', 'checkbox'].includes(el.type) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || el.id || '';
@@ -166,6 +170,15 @@ const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, c
   const tw = Math.max(r.width, bw, aw), th = Math.max(r.height, bh, ah);
   all(document, '[data-betasim-hit]').forEach(x => x.removeAttribute('data-betasim-hit'));
   el.setAttribute('data-betasim-hit', '1');
+  // the keyboard: a control in the Tab order, or out of it inside a group that is one Tab stop (tabs, radios, a toolbar), reached with arrows;
+  // its distance in stops from where the focus is now, Shift+Tab included
+  const stops = all(root, FOCUSABLE).filter(tabbable);
+  const group = tabbable(el) ? null : closest(el, GROUPS);
+  const stop = tabbable(el) ? el : group ? stops.find(s => inside(group, s)) : undefined;
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  const from = stops.findIndex(s => s === active || inside(s, active));
+  const keySteps = stop ? Math.abs(stops.indexOf(stop) - from) + (stop === el ? 0 : 1) : null;
   const label = el.getAttribute('aria-label');
   const text = textOf(el);
   const role = roleOf(el);
@@ -173,13 +186,14 @@ const RESOLVE = inPage(({ spec, mode, layers, ignore, disclosure }, { up, all, c
   const isField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
   return {
     ok: hit, error: hit ? null : 'covered by ' + cover, layer, level,
-    name: ((isField ? visualLabel(el) || a11yName : nameOf(el)) || nameOf(el)).slice(0, 90), a11yName: a11yName.slice(0, 90), nameSource,
+    name: norm((isField ? visualLabel(el) || a11yName : nameOf(el)) || nameOf(el)).slice(0, 90), a11yName: a11yName.slice(0, 90), nameSource,
     role, tag: el.tagName.toLowerCase(),
     w: Math.round(tw), h: Math.round(th), cx, cy, offscreen, geo, dupes, dupesNear,
     // a switch or a checkbox with its words next to it is not an icon on its own
     iconOnly: !isField && !text && !!label && !(['switch', 'checkbox', 'radio'].includes(role) && norm(el.parentElement?.innerText ?? '').length > 0),
     labelled: ['aria', 'label', 'text', 'title'].includes(nameSource),
     actionable: role !== 'generic',
+    keyboard: !!stop, keySteps,
     disclosure: !!(disclosure && el.matches(disclosure)),
     fontPx: parseFloat(getComputedStyle(el).fontSize) || 0,
     inputType: el.tagName === 'SELECT' ? 'select' : (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ? (el.type || 'text') : null,
@@ -220,7 +234,7 @@ const SCREEN = inPage(({ layers, ignore, disclosure }, { up, all, closest, insid
     return Math.round(r.top - b.top + (box ? box.scrollTop : scrollY));
   };
   const disclosures = disclosure ? all(root, disclosure).filter(visible)
-    .map(d => ({ name: String(d.getAttribute('aria-label') || d.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60), top: topIn(d) })) : [];
+    .map(d => ({ name: String(d.getAttribute('aria-label') || d.innerText || '').replace(/[‎‏‪-‮⁦-⁩]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60), top: topIn(d) })) : [];
   return { route: location.hash || location.pathname, layer, choices: outer.length, words, disclosures };
 });
 

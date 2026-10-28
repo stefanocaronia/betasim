@@ -78,7 +78,7 @@ table{border-collapse:collapse;width:100%}
 .sev-B .sev{color:var(--bad)}.sev-A .sev{color:var(--warn)}
 .seg{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
 .ft{margin:0;font-weight:500}.fe{margin:0;font-size:13px;color:var(--muted)}.fs{margin:0;font-size:13px}
-.fs::before{content:"Proposta: ";color:var(--accent);font-weight:600}
+.fs::before{content:"Proposal: ";color:var(--accent);font-weight:600}
 .trend{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .trend>div{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);display:grid;gap:6px}
 .last{margin:0;font-size:13px;color:var(--muted)}
@@ -163,7 +163,7 @@ function spark(values, { min = 0, max = 1, w = 168, h = 40, pct = true } = {}) {
   const line = pts.map(([v, i]) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const [lv, li] = pts[pts.length - 1];
   const area = pts.length > 1 ? `<polygon class="sp-area" points="${x(pts[0][1]).toFixed(1)},${h - pad} ${line} ${x(li).toFixed(1)},${h - pad}"/>` : '';
-  return `<svg class="spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="andamento: ultimo valore ${pct ? pc(lv) : lv}">`
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="trend: last value ${pct ? pc(lv) : lv}">`
     + `<line class="sp-base" x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}"/>${area}`
     + (pts.length > 1 ? `<polyline class="sp-line" points="${line}"/>` : '')
     + `<circle class="sp-end" cx="${x(li).toFixed(1)}" cy="${y(lv).toFixed(1)}" r="3.2"/></svg>`;
@@ -182,24 +182,24 @@ export function renderDashboard({ cfg, results, findings, tasks, personas, segme
   const usedPersonas = personas.filter(p => U.some(([, u]) => u.measurable && u.personas[p.id]));
 
   const pills = [
-    ['Motore', `${engineOk}/${results.engine.length}`, engineOk === results.engine.length ? 'ok' : 'bad'],
-    ['Flussi', `${flowsOk}/${results.flows.length}`, flowsOk === results.flows.length ? 'ok' : 'bad'],
-    ['Riuscita pesata', pc(current.overall), current.overall >= 0.95 ? 'ok' : current.overall >= 0.9 ? 'warn' : 'bad'],
-    ['Finding', `B ${count('B')} · A ${count('A')} · P ${count('P')}`, count('B') ? 'bad' : count('A') ? 'warn' : 'ok'],
+    ['Engine', `${engineOk}/${results.engine.length}`, engineOk === results.engine.length ? 'ok' : 'bad'],
+    ['Flows', `${flowsOk}/${results.flows.length}`, flowsOk === results.flows.length ? 'ok' : 'bad'],
+    ['Weighted success', pc(current.overall), current.overall >= 0.95 ? 'ok' : current.overall >= 0.9 ? 'warn' : 'bad'],
+    ['Findings', `B ${count('B')} · A ${count('A')} · P ${count('P')}`, count('B') ? 'bad' : count('A') ? 'warn' : 'ok'],
   ].map(([k, v, s]) => `<div class="pill ${s}"><span class="k">${k}</span><span class="v">${esc(v)}</span></div>`).join('');
 
   const who = id => byPersona[id]?.name || id;
   const floorCard = s => `<article class="target floor ${s.ok ? 'ok' : 'miss'}">
-      <header><h3>${esc(s.name)}</h3><span class="kind">impegno</span></header>
-      <div class="score"><span class="big">${pc(s.worstPair?.success)}</span><span class="goal">il più basso · soglia ${pc(s.floor)}</span></div>
-      <p class="status">${s.ok ? 'Nessuno sotto la soglia' : `${s.breaks.length} sotto la soglia: ${s.breaks.slice(0, 3).map(b => `${esc(who(b.persona))} su <b>${esc(b.task)}</b> ${pc(b.success)}`).join(', ')}`}</p>
+      <header><h3>${esc(s.name)}</h3><span class="kind">floor</span></header>
+      <div class="score"><span class="big">${pc(s.worstPair?.success)}</span><span class="goal">lowest · floor ${pc(s.floor)}</span></div>
+      <p class="status">${s.ok ? 'Nobody below the floor' : `${s.breaks.length} below the floor: ${s.breaks.slice(0, 3).map(b => `${esc(who(b.persona))} on <b>${esc(b.task)}</b> ${pc(b.success)}`).join(', ')}`}</p>
       <p class="who">${s.personas.map(id => esc(who(id))).join(', ')}</p>
     </article>`;
   const targetCards = segScores.map(s => s.kind === 'floor' ? floorCard(s) : `<article class="target ${s.ok ? 'ok' : 'miss'}">
-      <header><h3>${esc(s.name)}</h3><span class="w" title="peso nel piano">${'●'.repeat(s.weight)}${'○'.repeat(Math.max(0, 3 - s.weight))}</span></header>
-      <div class="score"><span class="big">${pc(s.score)}</span><span class="goal">obiettivo ${pc(s.goal.success)}</span></div>
-      <p class="status">${s.ok ? 'Raggiunto' : 'Sotto l’obiettivo'}${s.worst ? ` · il compito peggiore: <b>${esc(s.worst[0])}</b> ${pc(s.worst[1])}` : ''}</p>
-      ${s.goal.critical != null && s.criticalMin != null ? `<p class="status">Compiti critici: la persona peggiore ${pc(s.criticalMin)}, l’obiettivo ${pc(s.goal.critical)}</p>` : ''}
+      <header><h3>${esc(s.name)}</h3><span class="w" title="weight in the plan">${'●'.repeat(s.weight)}${'○'.repeat(Math.max(0, 3 - s.weight))}</span></header>
+      <div class="score"><span class="big">${pc(s.score)}</span><span class="goal">goal ${pc(s.goal.success)}</span></div>
+      <p class="status">${s.ok ? 'Reached' : 'Below the goal'}${s.worst ? ` · worst task: <b>${esc(s.worst[0])}</b> ${pc(s.worst[1])}` : ''}</p>
+      ${s.goal.critical != null && s.criticalMin != null ? `<p class="status">Critical tasks: worst persona ${pc(s.criticalMin)}, goal ${pc(s.goal.critical)}</p>` : ''}
       <p class="who">${s.personas.map(id => esc(byPersona[id]?.name || id)).join(', ')}</p>
       ${spark(runs.map(r => r.segs?.[s.id] ?? null), { min: 0.7 })}
     </article>`).join('');
@@ -207,17 +207,17 @@ export function renderDashboard({ cfg, results, findings, tasks, personas, segme
   const head = usedPersonas.map(p => `<th scope="col" title="${esc(p.summary || '')}"><span>${esc(p.name || p.id)}</span><small>${p.age ?? ''}</small></th>`).join('');
   const rows = U.map(([tid, u]) => {
     const t = tasks.find(x => x.id === tid) || {};
-    if (!u.measurable) return `<tr><th scope="row" title="${esc(t.goal || '')}">${esc(tid)}</th><td colspan="${usedPersonas.length + 1}" class="na">non misurabile: ${esc(u.reason)}</td></tr>`;
+    if (!u.measurable) return `<tr><th scope="row" title="${esc(t.goal || '')}">${esc(tid)}</th><td colspan="${usedPersonas.length + 1}" class="na">not measurable: ${esc(u.reason)}</td></tr>`;
     const vals = Object.values(u.personas).map(r => r.success);
     const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
     const cells = usedPersonas.map(p => {
       const r = u.personas[p.id];
       if (!r) return '<td class="h0"></td>';
       const stop = Object.entries(r.stops).sort((a, b) => b[1] - a[1])[0];
-      const why = stop ? ` · si ferma al passo ${u.steps[stop[0]]?.step} (${u.steps[stop[0]]?.name || ''})` : '';
-      return `<td class="${heat(r.success)}" title="${esc(`${p.name}: ${pc(r.success)} · mediana ${r.medianT ?? '—'} s${why}`)}">${Math.round(r.success * 100)}</td>`;
+      const why = stop ? ` · stops at step ${u.steps[stop[0]]?.step} (${u.steps[stop[0]]?.name || ''})` : '';
+      return `<td class="${heat(r.success)}" title="${esc(`${p.name}: ${pc(r.success)} · median ${r.medianT ?? '—'} s${why}`)}">${Math.round(r.success * 100)}</td>`;
     }).join('');
-    return { avg, html: `<tr><th scope="row" title="${esc(t.goal || '')}">${esc(tid)}${t.critical ? ' <i class="crit" title="critico">!</i>' : ''}</th>${cells}<td class="avg ${heat(avg)}">${Math.round(avg * 100)}</td></tr>` };
+    return { avg, html: `<tr><th scope="row" title="${esc(t.goal || '')}">${esc(tid)}${t.critical ? ' <i class="crit" title="critical">!</i>' : ''}</th>${cells}<td class="avg ${heat(avg)}">${Math.round(avg * 100)}</td></tr>` };
   }).sort((a, b) => (a.avg ?? -1) - (b.avg ?? -1)).map(r => r.html || r).join('');
 
   const segName = Object.fromEntries(segScores.map(s => [s.id, s.name]));
@@ -226,7 +226,7 @@ export function renderDashboard({ cfg, results, findings, tasks, personas, segme
       <p class="ft">${esc(f.title)}</p>
       ${(f.evidence || []).map(e => `<p class="fe">${esc(e)}</p>`).join('')}
       ${f.suggestion ? `<p class="fs">${esc(f.suggestion)}</p>` : ''}
-      ${f.screenshot ? `<p class="fe">schermata: <code>${esc(f.screenshot)}</code></p>` : ''}
+      ${f.screenshot ? `<p class="fe">screenshot: <code>${esc(f.screenshot)}</code></p>` : ''}
     </li>`).join('');
 
   const flowRows = results.flows.map(r => `<tr class="${r.ok ? '' : 'fail'}"><td>${r.ok ? '✓' : '✗'}</td><th scope="row">${esc(r.name)}</th><td class="num">${r.taps}${r.inputs ? ` + ${r.inputs}` : ''}</td><td class="num">${r.ms} ms</td></tr>${r.ok ? '' : `<tr class="err"><td></td><td colspan="3">${esc(r.error)}</td></tr>`}`).join('');
@@ -242,87 +242,87 @@ export function renderDashboard({ cfg, results, findings, tasks, personas, segme
     const lost = clash.some(p => p.preferred !== r.id);
     const opts = (r.options || []).map(o => {
       const pref = o.variant === r.preferred;
-      const goal = o.reachesGoal?.length ? `<span class="badge goal">porta sopra l’obiettivo: ${esc(o.reachesGoal.map(id => segN[id] || id).join(', '))}</span>` : '';
-      const time = Math.abs(o.timeDelta || 0) >= 0.1 ? `<span class="dchip ${o.timeDelta < 0 ? 'up' : 'down'}">tempo ${o.timeDelta > 0 ? '+' : '−'}${Math.abs(o.timeDelta).toFixed(1)} s</span>` : '';
-      return `<li class="${pref ? 'pref' : ''}"><span class="opt">${pref ? '<span class="badge pref">preferita</span> ' : ''}${esc(o.label)}</span><span class="num">${pt(o.gain)}</span><div class="chips">${chipsOf(o)}${time}${goal}</div></li>`;
+      const goal = o.reachesGoal?.length ? `<span class="badge goal">brings above the goal: ${esc(o.reachesGoal.map(id => segN[id] || id).join(', '))}</span>` : '';
+      const time = Math.abs(o.timeDelta || 0) >= 0.1 ? `<span class="dchip ${o.timeDelta < 0 ? 'up' : 'down'}">time ${o.timeDelta > 0 ? '+' : '−'}${Math.abs(o.timeDelta).toFixed(1)} s</span>` : '';
+      return `<li class="${pref ? 'pref' : ''}"><span class="opt">${pref ? '<span class="badge pref">preferred</span> ' : ''}${esc(o.label)}</span><span class="num">${pt(o.gain)}</span><div class="chips">${chipsOf(o)}${time}${goal}</div></li>`;
     }).join('');
-    return `<tr><th scope="row"><code>${r.id}</code></th><td><b>«${esc(r.name)}»</b> <span class="muted">· ${esc(r.screen)} · ${esc(r.findings.join(', '))}</span>${lost ? ' <span class="badge lose">in collisione: scartata</span>' : ''}<ul class="opts">${opts}</ul></td></tr>`;
+    return `<tr><th scope="row"><code>${r.id}</code></th><td><b>"${esc(r.name)}"</b> <span class="muted">· ${esc(r.screen)} · ${esc(r.findings.join(', '))}</span>${lost ? ' <span class="badge lose">clashes: dropped</span>' : ''}<ul class="opts">${opts}</ul></td></tr>`;
   }).join('');
   const minor = (results.remedies || []).filter(r => r.negligible);
   const pairsHtml = pairs.map(p => `<li class="pair ${p.kind}">${p.kind === 'collide'
-    ? `<b>${p.a}</b> e <b>${p.b}</b> collidono: insieme ${pt(p.together)} punti, meno del migliore dei due da solo. Preferito <b>${p.preferred}</b>, quello che serve di più ai target.`
-    : p.kind === 'synergy' ? `<b>${p.a}</b> e <b>${p.b}</b> insieme rendono più della somma: ${pt(p.together)} punti.`
-    : `<b>${p.a}</b> e <b>${p.b}</b> si ostacolano: insieme ${pt(p.together)} punti.`}</li>`).join('');
+    ? `<b>${p.a}</b> and <b>${p.b}</b> clash: together ${pt(p.together)} points, less than the better of the two alone. Preferred <b>${p.preferred}</b>, the one that helps the targets most.`
+    : p.kind === 'synergy' ? `<b>${p.a}</b> and <b>${p.b}</b> together give more than the sum: ${pt(p.together)} points.`
+    : `<b>${p.a}</b> and <b>${p.b}</b> get in each other's way: together ${pt(p.together)} points.`}</li>`).join('');
   const cov = results.coverage;
   const covHtml = cov ? [...new Set(cov.rows.map(r => r.area || '—'))].map(a => `<div class="area"><h3>${esc(a)}</h3><ul class="feat">${cov.rows.filter(r => (r.area || '—') === a)
-    .map(r => `<li class="st-${r.status.replace(' ', '-')}"><span class="dot" aria-hidden="true"></span><span>${esc(r.name)}</span>${r.flows.length || r.cases.length ? `<code>${esc([...r.flows, ...r.cases].slice(0, 2).join(', '))}${r.flows.length + r.cases.length > 2 ? '…' : ''}</code>` : '<code>nessun flusso</code>'}</li>`).join('')}</ul></div>`).join('') : '';
+    .map(r => `<li class="st-${r.status.replace(' ', '-')}"><span class="dot" aria-hidden="true"></span><span>${esc(r.name)}</span>${r.flows.length || r.cases.length ? `<code>${esc([...r.flows, ...r.cases].slice(0, 2).join(', '))}${r.flows.length + r.cases.length > 2 ? '…' : ''}</code>` : '<code>no flow</code>'}</li>`).join('')}</ul></div>`).join('') : '';
   const trend = `<div class="trend">
-      <div><h3>Riuscita pesata</h3>${spark(runs.map(r => r.overall), { min: 0.7 })}<p class="last">${pc(current.overall)} in questo giro</p></div>
-      <div><h3>Finding B e A</h3>${spark(runs.map(r => r.B + r.A), { min: 0, max: Math.max(1, ...runs.map(r => r.B + r.A)), pct: false })}<p class="last">${count('B') + count('A')} in questo giro</p></div>
-      <div><h3>Giri</h3><p class="last">${runs.length} (${esc(runs[0]?.date || '')} → ${esc(current.date || '')})</p></div>
+      <div><h3>Weighted success</h3>${spark(runs.map(r => r.overall), { min: 0.7 })}<p class="last">${pc(current.overall)} in this run</p></div>
+      <div><h3>B and A findings</h3>${spark(runs.map(r => r.B + r.A), { min: 0, max: Math.max(1, ...runs.map(r => r.B + r.A)), pct: false })}<p class="last">${count('B') + count('A')} in this run</p></div>
+      <div><h3>Runs</h3><p class="last">${runs.length} (${esc(runs[0]?.date || '')} → ${esc(current.date || '')})</p></div>
     </div>`;
 
   return `${pageHead(`${cfg.name} betasim`)}<div class="wrap">
   <header class="top">
-    <div><h1>${esc(cfg.name)}</h1><p class="run">betasim · giro del ${esc(m.date)} · ${m.runs} prove per coppia persona-compito · seme ${m.seed} · ${Math.round(m.seconds)} s</p></div>
+    <div><h1>${esc(cfg.name)}</h1><p class="run">betasim · run of ${esc(m.date)} · ${m.runs} trials per persona-task pair · seed ${m.seed} · ${Math.round(m.seconds)} s</p></div>
     <div class="counts">${pills}</div>
   </header>
   <section id="target">
-    <h2>Target</h2>
-    <p class="lede">I pubblici del piano. Quelli di mercato hanno un peso e un obiettivo: la riuscita dei loro membri sui compiti pensati per loro, pesata su quanto spesso capitano. Quelli d’impegno hanno una soglia che non si scambia con i guadagni: nessuno sotto, su nessun compito pensato per lui.</p>
-    <div class="targets">${targetCards || '<p class="lede">Nessun target in betasim.yaml.</p>'}</div>
+    <h2>Targets</h2>
+    <p class="lede">The audiences of the plan. Market targets have a weight and a goal: their members' success on the tasks meant for them, weighted by how often the tasks happen. Floors have a threshold that is never traded for gains: nobody below it, on any task meant for them.</p>
+    <div class="targets">${targetCards || '<p class="lede">No targets in betasim.yaml.</p>'}</div>
   </section>
-  <section id="mappa">
-    <h2>Compiti e persone</h2>
-    <p class="lede">La riuscita di ogni persona su ogni compito, in percentuale, dal compito più difficile in su. Passando sopra una casella si vede dove quella persona si ferma.</p>
-    <div class="scroll"><table class="heat"><thead><tr><th scope="col"></th>${head}<th scope="col">media</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="legend"><span><i class="h5"></i>97% e oltre</span><span><i class="h4"></i>93–96</span><span><i class="h3"></i>85–92</span><span><i class="h2"></i>70–84</span><span><i class="h1"></i>sotto 70</span><span><i class="h0"></i>fuori dal pubblico del compito</span></div>
+  <section id="map">
+    <h2>Tasks and personas</h2>
+    <p class="lede">Each persona's success on each task, in percent, hardest task first. Hover a cell to see where that persona stops.</p>
+    <div class="scroll"><table class="heat"><thead><tr><th scope="col"></th>${head}<th scope="col">average</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="legend"><span><i class="h5"></i>97% and over</span><span><i class="h4"></i>93–96</span><span><i class="h3"></i>85–92</span><span><i class="h2"></i>70–84</span><span><i class="h1"></i>under 70</span><span><i class="h0"></i>outside the task's audience</span></div>
   </section>
   <section id="finding">
-    <h2>Finding</h2>
-    <div class="filters" role="group" aria-label="Gravità">
-      <button type="button" id="f-all" data-f="all" aria-pressed="true">Tutti ${findings.length}</button>
+    <h2>Findings</h2>
+    <div class="filters" role="group" aria-label="Severity">
+      <button type="button" id="f-all" data-f="all" aria-pressed="true">All ${findings.length}</button>
       <button type="button" id="f-B" data-f="B" aria-pressed="false">B ${count('B')}</button>
       <button type="button" id="f-A" data-f="A" aria-pressed="false">A ${count('A')}</button>
       <button type="button" id="f-P" data-f="P" aria-pressed="false">P ${count('P')}</button>
     </div>
-    <ol class="flist">${items || '<li class="f"><p class="ft">Niente da guardare in questo giro.</p></li>'}</ol>
+    <ol class="flist">${items || '<li class="f"><p class="ft">Nothing to look at in this run.</p></li>'}</ol>
   </section>
   ${(results.agents || []).length ? `<section id="llm">
-    <h2>Tester LLM</h2>
-    <p class="lede">Una persona interpretata da un modello, che usa l’app vera una mossa alla volta guardando lo schermo, senza aver mai visto il codice. Trova quello che i numeri non vedono: dove cerca le cose, cosa si aspetta, cosa la aggancia.</p>
-    <div class="agents">${results.agents.map(a => { const e = a.esito || {}; return `<article class="agent">
-      <header><h3>${esc(a.scenario)} · ${esc(a.phase)}</h3><span class="kind">${a.moves} mosse</span></header>
-      <div class="chips"><span class="badge ${e.riuscita === 'sì' ? 'goal' : ''}">riuscita: ${esc(e.riuscita ?? '—')}</span><span class="badge ${e.agganciata === 'sì' ? 'goal' : ''}">agganciata: ${esc(e.agganciata ?? '—')}</span></div>
-      ${e.dove_mi_sono_persa ? `<p><b>Dove si è persa.</b> ${esc(e.dove_mi_sono_persa)}</p>` : ''}
-      ${e.perché ? `<p><b>Perché ${e.agganciata === 'no' ? 'non torna' : 'torna'}.</b> ${esc(e.perché)}</p>` : ''}
-      ${e.cosa_mi_farebbe_pagare ? `<p class="muted"><b>Cosa la farebbe pagare.</b> ${esc(e.cosa_mi_farebbe_pagare)}</p>` : ''}
+    <h2>LLM testers</h2>
+    <p class="lede">A persona played by a model, using the real app one move at a time and looking at the screen, without having seen the code. It finds what the numbers miss: where people look for things, what they expect, what hooks them.</p>
+    <div class="agents">${results.agents.map(a => { const e = a.outcome || {}; return `<article class="agent">
+      <header><h3>${esc(a.scenario)} · ${esc(a.phase)}</h3><span class="kind">${a.moves} moves</span></header>
+      <div class="chips"><span class="badge ${e.success === 'yes' ? 'goal' : ''}">success: ${esc(e.success ?? '—')}</span><span class="badge ${e.hooked === 'yes' ? 'goal' : ''}">hooked: ${esc(e.hooked ?? '—')}</span></div>
+      ${e.where_i_got_lost ? `<p><b>Where they got lost.</b> ${esc(e.where_i_got_lost)}</p>` : ''}
+      ${e.why ? `<p><b>Why they ${e.hooked === 'no' ? 'would not come back' : 'would come back'}.</b> ${esc(e.why)}</p>` : ''}
+      ${e.what_would_make_me_pay ? `<p class="muted"><b>What would make them pay.</b> ${esc(e.what_would_make_me_pay)}</p>` : ''}
     </article>`; }).join('')}</div>
   </section>` : ''}
-  <section id="rimedi">
-    <h2>Rimedi simulati</h2>
-    <p class="lede">Per ogni problema, le soluzioni possibili applicate ai percorsi misurati, anche agli altri flussi che passano dalla stessa schermata, e rifatte provare a tutte le persone. Il numero è quanto cambia la riuscita pesata dei target, in punti; la preferita è quella che serve di più ai target. Poi le preferite di problemi diversi sulla stessa schermata si provano insieme: collidono se insieme rendono meno della migliore da sola.</p>
-    ${remedyRows ? `<div class="scroll"><table class="rem"><tbody>${remedyRows}</tbody></table></div>` : '<p class="lede">Nessun rimedio da simulare in questo giro.</p>'}
-    ${minor.length ? `<p class="muted">Effetto trascurabile sui target: ${minor.map(r => `${r.id} «${esc(r.name)}»`).join(', ')}.</p>` : ''}
-    ${pairsHtml ? `<ul class="pairs">${pairsHtml}</ul>` : '<p class="muted">Nessuna collisione tra le soluzioni preferite dei problemi sulla stessa schermata.</p>'}
+  <section id="remedies">
+    <h2>Simulated remedies</h2>
+    <p class="lede">For each problem, the possible fixes applied to the measured paths, including the other flows through the same screen, and tried again by every persona. The number is the change in the targets' weighted success, in points; the preferred fix is the one that helps the targets most. The preferred fixes of different problems on one screen are then tried together: they clash when together they give less than the better one alone.</p>
+    ${remedyRows ? `<div class="scroll"><table class="rem"><tbody>${remedyRows}</tbody></table></div>` : '<p class="lede">No remedies to simulate in this run.</p>'}
+    ${minor.length ? `<p class="muted">Negligible effect on the targets: ${minor.map(r => `${r.id} "${esc(r.name)}"`).join(', ')}.</p>` : ''}
+    ${pairsHtml ? `<ul class="pairs">${pairsHtml}</ul>` : '<p class="muted">No clash between the preferred fixes of problems on the same screen.</p>'}
   </section>
-  <section id="copertura">
-    <h2>Copertura</h2>
-    <p class="lede">${cov ? `Il controllo di base, uguale per tutti: ${cov.covered} funzioni su ${cov.total} passano per almeno un flusso che le clicca. Verde: provata e funziona; rosso: il flusso si rompe; grigio: nessun flusso la prova ancora.` : 'La copertura si calcola quando girano tutti i flussi e il progetto ha un features.yaml.'}</p>
+  <section id="coverage">
+    <h2>Coverage</h2>
+    <p class="lede">${cov ? `The plain check, the same for everyone: ${cov.covered} of ${cov.total} features go through at least one flow that clicks them. Green: tried and working; red: the flow breaks; grey: no flow tries it yet.` : 'Coverage is computed when all flows run and the project has a features.yaml.'}</p>
     ${covHtml ? `<div class="areas">${covHtml}</div>` : ''}
   </section>
-  <section id="andamento">
-    <h2>Andamento</h2>
+  <section id="trend">
+    <h2>Trend</h2>
     ${trend}
   </section>
-  <section id="flussi">
-    <h2>Flussi e motore</h2>
+  <section id="flows">
+    <h2>Flows and engine</h2>
     <div class="two">
-      <div class="scroll"><table class="plain"><thead><tr><th></th><th scope="col">Flusso</th><th scope="col" class="num">tocchi</th><th scope="col" class="num">durata</th></tr></thead><tbody>${flowRows}</tbody></table></div>
-      <div class="scroll"><table class="plain"><thead><tr><th></th><th scope="col">Caso del motore</th></tr></thead><tbody>${engineRows}</tbody></table></div>
+      <div class="scroll"><table class="plain"><thead><tr><th></th><th scope="col">Flow</th><th scope="col" class="num">taps</th><th scope="col" class="num">duration</th></tr></thead><tbody>${flowRows}</tbody></table></div>
+      <div class="scroll"><table class="plain"><thead><tr><th></th><th scope="col">Engine case</th></tr></thead><tbody>${engineRows}</tbody></table></div>
     </div>
   </section>
-  <p class="foot">I tester sono simulati: trovano i problemi di struttura (percorsi lunghi, comandi nascosti, bersagli piccoli, gergo, elementi muti per TalkBack), non i fraintendimenti imprevisti. I numeri servono a confrontare compiti, persone e giri, non a predire. Il test con persone vere resta.</p>
+  <p class="foot">The testers are simulated: they find structural problems (long paths, hidden controls, small targets, jargon, controls a screen reader cannot name), not unexpected misunderstandings. The numbers compare tasks, personas and runs; they do not predict. A test with real people is still needed.</p>
 </div>
 <script>
 (function(){

@@ -15,26 +15,27 @@ import { rng, hashSeed } from './util.mjs';
 
 const VARIANTS = {
   hidden: [
-    ['reveal-one', 'portare in vista solo il comando che serve'],
-    ['hint', 'far dire all’espansore cosa c’è sotto'],
-    ['reveal-all', 'aprire per tutti il contenuto dell’espansore'],
+    ['reveal-one', 'bring only the needed control into view'],
+    ['hint', 'have the expander say what it hides'],
+    ['reveal-all', 'open the expander for everyone'],
   ],
   offscreenButton: [
-    ['pin-row', 'fissare in vista la riga dei pulsanti'],
-    ['move-up', 'portare il comando più in alto'],
+    ['pin-row', 'pin the button row in view'],
+    ['move-up', 'move the control higher'],
   ],
   offscreen: [
-    ['move-up', 'portare il comando più in alto'],
-    ['shorten', 'accorciare ciò che gli sta sopra'],
+    ['move-up', 'move the control higher'],
+    ['shorten', 'shorten what is above it'],
   ],
-  small: [['enlarge', 'portare il bersaglio a 48 dp']],
-  words: [['simpler', 'una parola più semplice']],
-  icon: [['word', 'una parola accanto all’icona']],
-  a11y: [['name', 'nome e ruolo per TalkBack']],
-  a11yWeak: [['label', 'collegare l’etichetta al campo']],
-  ambiguous: [['rename', 'nomi diversi per i comandi uguali']],
-  concept: [['explain', 'spiegare l’idea sul posto']],
-  input: [['presets', 'valori pronti al posto del campo']],
+  small: [['enlarge', 'make the target 48 dp']],
+  words: [['simpler', 'a simpler word']],
+  icon: [['word', 'a word beside the icon']],
+  a11y: [['name', 'a name and a role for screen readers']],
+  a11yWeak: [['label', 'tie the label to the field']],
+  keys: [['focus', 'reachable with the keyboard']],
+  ambiguous: [['rename', 'different names for the same-named controls']],
+  concept: [['explain', 'explain the idea where it is needed']],
+  input: [['presets', 'ready values instead of the field']],
 };
 
 export function screenKeyOf(cfg, screen) {
@@ -156,6 +157,7 @@ export function applyRemedies(base, list, cfg, reveals) {
         case 'word': for (const s of hits) s.iconOnly = false; break;
         case 'name': case 'label': for (const s of hits) { s.labelled = true; s.actionable = true; s.nameSource = 'aria'; } break;
         case 'rename': for (const s of hits) { s.dupes = 0; s.dupesNear = 0; } break;
+        case 'focus': for (const s of hits) s.keyboard = true; break;
         case 'explain':
           for (const s of hits) { s.concept = null; if (s.geo) push(s.geo.top + 1, 20, s); for (const o of onScreen) if (o.screenChanged) o.screen = { ...o.screen, words: (o.screen.words || 0) + 12 }; }
           break;

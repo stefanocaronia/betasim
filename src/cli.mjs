@@ -5,31 +5,32 @@ import { brief } from './brief.mjs';
 import { play } from './play.mjs';
 import { agentBrief, agentReport } from './agents.mjs';
 import { loadDir } from './util.mjs';
+import { loadPersonas } from './personas.mjs';
 import { look } from './look.mjs';
 import { init } from './init.mjs';
 
-const HELP = `betasim (o bs): test del motore, flussi YAML e beta tester simulati.
+const HELP = `betasim (or bs): engine tests, YAML flows and simulated beta testers.
 
-  betasim init [url | cartella]               prepara un sito: test/betasim.yaml e un primo flusso, senza codice da scrivere
-  betasim look <url | cartella | file.html>   guarda la pagina: screenshot, console e accessibilità (axe), a 375 e 1280, chiaro e scuro
-           [--width 375,1280] [--theme light,dark] [--click <selettore>] [--press <tasto>] [--wait <ms>] [--full] [--aria] [--still] [--out look]
-  betasim [engine] [flows] [usability] [all]   lancia le suite (default: all)
-  betasim --ab A,B [flows] [usability]         A/B: gli stessi flussi e le stesse persone su due varianti dell'app, e le differenze (report/ab)
-  betasim list                                 elenca casi, flussi, compiti, persone e varianti
-  betasim brief --task <id> --persona <id>     il primo schermo e la persona, per un agente LLM
-  betasim agent-brief --scenario <file> --phase <id> [--fresh] [--variant B]   il brief completo per un tester LLM
-  betasim play --session <cartella> [--do "tap: Quick timer"]    una mossa del tester LLM, e lo schermo che ne esce
-  betasim agent-report [--scenario <file>]      il diario del tester LLM diventa un report
+  betasim init [url | folder]                 readies a site: test/betasim.yaml and a first flow, no code to write
+  betasim look <url | folder | file.html>     looks at the page: screenshots, console and accessibility (axe), at 375 and 1280, light and dark
+           [--width 375,1280] [--theme light,dark] [--click <selector>] [--press <key>] [--wait <ms>] [--full] [--aria] [--still] [--out look]
+  betasim [engine] [flows] [usability] [all]   runs the suites (default: all)
+  betasim --ab A,B [flows] [usability]         A/B: the same flows and personas on two variants of the app, and the differences (report/ab)
+  betasim list                                 lists cases, flows, tasks, personas and variants
+  betasim brief --task <id> --persona <id>     the first screen and the persona, for an LLM agent
+  betasim agent-brief --scenario <file> --phase <id> [--fresh] [--variant B]   the full brief for an LLM tester
+  betasim play --session <folder> [--do "tap: Quick timer"]    one move of the LLM tester, and the screen it leads to
+  betasim agent-report [--scenario <file>]      the LLM tester's diary becomes a report
 
-Opzioni:
-  --config <file>   betasim.yaml del progetto (default: ./betasim.yaml, ./test/betasim.yaml)
-  --only <testo>    solo i casi, flussi e compiti il cui id contiene il testo
-  --runs <n>        prove simulate per ogni coppia persona-compito
-  --seed <n>        seme del caso: stesso seme, stessi risultati
-  --ab <A,B>        confronta due varianti di betasim.yaml (senza valore: le prime due)
-  --variant <id>    brief e agent-brief: la variante dell'app che vede il tester
-  --headed          mostra il browser
-  --quiet           stampa solo il riepilogo corto
+Options:
+  --config <file>   the project's betasim.yaml (default: ./betasim.yaml, ./test/betasim.yaml)
+  --only <text>     only the cases, flows and tasks whose id contains the text
+  --runs <n>        simulated trials for each persona-task pair
+  --seed <n>        random seed: same seed, same results
+  --ab <A,B>        compares two variants of betasim.yaml (with no value: the first two)
+  --variant <id>    brief and agent-brief: the variant of the app the tester sees
+  --headed          shows the browser
+  --quiet           prints only the short summary
 `;
 
 function parseArgs(argv) {
@@ -60,7 +61,7 @@ export async function main(argv) {
   if (cmd === 'list') {
     const show = (title, items) => console.log(`${title} (${items.length}): ${items.map(x => x.id).join(', ')}`);
     show('engine', loadDir(cfg.dirs.engine)); show('flows', loadDir(cfg.dirs.flows)); show('tasks', loadDir(cfg.dirs.tasks));
-    show('personas', cfg.personaDirs.flatMap(loadDir));
+    show('personas', loadPersonas(cfg));
     show('variants', cfg.variants);
     return 0;
   }

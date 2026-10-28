@@ -1,6 +1,7 @@
 import { launchBrowser } from './driver/web.mjs';
 import { serveStatic } from './server.mjs';
 import { loadDir } from './util.mjs';
+import { loadPersonas } from './personas.mjs';
 import { runEngineCase } from './suites/engine.mjs';
 import { runFlow } from './suites/flows.mjs';
 import { runUsability } from './suites/usability.mjs';
@@ -31,7 +32,7 @@ export async function runAll(cfg, suites, args) {
   const engineCases = pick(loadDir(cfg.dirs.engine));
   const flows = loadDir(cfg.dirs.flows);
   const tasks = pick(loadDir(cfg.dirs.tasks));
-  const personas = cfg.personaDirs.flatMap(loadDir);
+  const personas = loadPersonas(cfg);
   const flowById = Object.fromEntries(flows.map(f => [f.id, f]));
   const quiet = !!args.quiet;
   const say = line => { if (!quiet) console.log(line); };
@@ -40,7 +41,7 @@ export async function runAll(cfg, suites, args) {
   const rep = prepareReport(cfg, { partial });
   const target = await openTarget(cfg, args);
   const ctx = { browser: target.browser, cfg, baseUrl: target.baseUrl, screensDir: rep.screensDir, variant: cfg.variants[0] || null };   // a plain run is a run of the first variant
-  const results = { meta: { date: new Date().toLocaleString('it-IT'), runs, seed, personas: personas.length, suites, partial: !!only }, engine: [], flows: [], usability: {} };
+  const results = { meta: { date: new Date().toLocaleString('en-GB'), runs, seed, personas: personas.length, suites, partial: !!only }, engine: [], flows: [], usability: {} };
   const flowResults = {};
   try {
     if (suites.includes('engine')) {
